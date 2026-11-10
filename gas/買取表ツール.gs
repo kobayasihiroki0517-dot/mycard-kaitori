@@ -1,12 +1,44 @@
 /** MyCard 買取表ツール（Google Apps Script） */
 function onOpen() {
   SpreadsheetApp.getUi().createMenu('買取表ツール')
+    .addItem('チェックしたカードを買取表に追加', 'addCheckedCards')
+    .addSeparator()
     .addItem('買取表を更新（Web・印刷用PDF）', 'runUpdate')
     .addItem('買取表を更新してXにも投稿', 'runUpdateAndPost')
     .addSeparator()
     .addItem('画像の名前変更と紐づけ', 'linkImages')
     .addItem('初期設定（GitHub連携）', 'setupGithub')
     .addToUi();
+}
+
+/* ---------- カード検索シート → 買取表に追加 ---------- */
+function addCheckedCards() {
+  const ui = SpreadsheetApp.getUi();
+  const ss = SpreadsheetApp.getActive();
+  const src = ss.getSheetByName('カード検索'), dst = ss.getSheetByName('買取表');
+  const rows = src.getRange(8, 1, 100, 6).getValues();   // A:追加 B:画像 C:エキスパンション D:番号 E:カード名 F:レギュレーション
+  const picked = [];
+  rows.forEach((r, i) => { if (r[0] === true && r[2] && r[4]) picked.push({ i: i, v: [r[2], String(r[3]), r[4], r[5]] }); });
+  if (!picked.length) { ui.alert('「追加」にチェックが入っているカードがありません。'); return; }
+  const last = Math.max(dst.getLastRow(), 1);
+  const cur = last > 1 ? dst.getRange(2, 1, last - 1, 4).getDisplayValues() : [];
+  const have = new Set(cur.map(r => r.join('|')));
+  let row = cur.findIndex(r => !r[0]);           // 買取表の最初の空き行
+  row = row === -1 ? cur.length + 2 : row + 2;
+  const added = [], skipped = [];
+  picked.forEach(p => {
+    const key = p.v.join('|');
+    if (have.has(key)) { skipped.push(p.v[2]); return; }
+    while (row <= dst.getMaxRows() && dst.getRange(row, 1).getValue() !== '') row++;
+    const r = dst.getRange(row, 1, 1, 4);
+    dst.getRange(row, 2).setNumberFormat('@');
+    r.setValues([p.v]);
+    have.add(key); added.push(p.v[2]); row++;
+  });
+  picked.forEach(p => src.getRange(8 + p.i, 1).setValue(false));
+  ui.alert('買取表に ' + added.length + ' 枚追加しました。' +
+    (skipped.length ? '\n（すでに買取表にあるため追加しなかったカード: ' + skipped.join('、') + '）' : '') +
+    '\n買取表シートで価格と「掲載」の○を入力してください。');
 }
 
 /* ---------- GitHub の自動作成を呼び出す ---------- */
