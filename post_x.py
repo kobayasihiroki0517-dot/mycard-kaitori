@@ -33,6 +33,8 @@ def compose(info, cfg, site_url):
         text = xc['text'].format(updated=info['updated'], featured='\n'.join(lines), web_url=site_url or '').strip()
         if not site_url:
             text = text.replace('全カードの買取価格はこちら👇\n', '')
+        if URL_RE.search(text):
+            print('注意: 投稿文にURLが含まれています（X APIの料金が高くなります）')
         if x_len(text) <= 280 or not lines:
             return text
         lines = lines[:-1]   # 長すぎるときは目玉カードの行を減らす
