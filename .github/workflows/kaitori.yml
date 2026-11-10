@@ -1,0 +1,62 @@
+name: 買取表を作成
+
+on:
+  # スプレッドシートの「買取表ツール」メニュー、またはGitHubの「Run workflow」ボタンから実行
+  workflow_dispatch:
+    inputs:
+      post_x:
+        description: 'Xにも投稿する'
+        type: boolean
+        default: false
+  # 定時実行（時刻が決まったら # を外して時刻を書き換える。時刻はUTC＝日本時間－9時間）
+  # schedule:
+  #   - cron: '50 5 * * *'   # 毎日 14:50（日本時間）
+
+permissions:
+  contents: read
+  pages: write
+  id-token: write
+
+concurrency:
+  group: kaitori
+  cancel-in-progress: false
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    environment:
+      name: github-pages
+      url: ${{ steps.deploy.outputs.page_url }}
+    steps:
+      - uses: actions/checkout@v4
+      - name: 日本語フォントを用意
+        run: sudo apt-get update -qq && sudo apt-get install -y -qq fonts-noto-cjk fonts-lato >/dev/null
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+      - run: pip install -q -r requirements.txt
+      - name: 画像キャッシュ
+        uses: actions/cache@v4
+        with:
+          path: .cache
+          key: img-${{ github.run_id }}
+          restore-keys: img-
+      - name: 買取表を作成（X用画像・A4 PDF・Webページ）
+        env:
+          SHEET_CSV_URL: ${{ secrets.SHEET_CSV_URL }}
+        run: python build.py
+      - uses: actions/upload-pages-artifact@v3
+        with:
+          path: site
+      - name: Webページを公開
+        id: deploy
+        uses: actions/deploy-pages@v4
+      - name: Xに投稿
+        if: ${{ github.event_name == 'schedule' || inputs.post_x }}
+        env:
+          X_API_KEY: ${{ secrets.X_API_KEY }}
+          X_API_SECRET: ${{ secrets.X_API_SECRET }}
+          X_ACCESS_TOKEN: ${{ secrets.X_ACCESS_TOKEN }}
+          X_ACCESS_SECRET: ${{ secrets.X_ACCESS_SECRET }}
+          SITE_URL: ${{ steps.deploy.outputs.page_url }}
+        run: python post_x.py

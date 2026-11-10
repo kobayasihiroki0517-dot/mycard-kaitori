@@ -1,0 +1,92 @@
+/** MyCard 買取表ツール（Google Apps Script） */
+function onOpen() {
+  SpreadsheetApp.getUi().createMenu('買取表ツール')
+    .addItem('買取表を更新（Web・印刷用PDF）', 'runUpdate')
+    .addItem('買取表を更新してXにも投稿', 'runUpdateAndPost')
+    .addSeparator()
+    .addItem('画像の名前変更と紐づけ', 'linkImages')
+    .addItem('初期設定（GitHub連携）', 'setupGithub')
+    .addToUi();
+}
+
+/* ---------- GitHub の自動作成を呼び出す ---------- */
+function setupGithub() {
+  const ui = SpreadsheetApp.getUi();
+  const props = PropertiesService.getDocumentProperties();
+  const r1 = ui.prompt('初期設定 1/2', 'GitHubのリポジトリ名を「ユーザー名/リポジトリ名」の形で入力してください。', ui.ButtonSet.OK_CANCEL);
+  if (r1.getSelectedButton() !== ui.Button.OK) return;
+  const r2 = ui.prompt('初期設定 2/2', 'GitHubのアクセストークン（github_pat_ から始まる文字列）を貼り付けてください。', ui.ButtonSet.OK_CANCEL);
+  if (r2.getSelectedButton() !== ui.Button.OK) return;
+  props.setProperty('GH_REPO', r1.getResponseText().trim());
+  props.setProperty('GH_TOKEN', r2.getResponseText().trim());
+  ui.alert('保存しました。「買取表を更新」を実行して動作を確認してください。');
+}
+function runUpdate() { dispatch_(false); }
+function runUpdateAndPost() {
+  const ui = SpreadsheetApp.getUi();
+  if (ui.alert('Xに投稿します', '買取表を作成して、MyCardのXアカウントに投稿します。よろしいですか？', ui.ButtonSet.OK_CANCEL) !== ui.Button.OK) return;
+  dispatch_(true);
+}
+function dispatch_(postX) {
+  const ui = SpreadsheetApp.getUi();
+  const props = PropertiesService.getDocumentProperties();
+  const repo = props.getProperty('GH_REPO'), token = props.getProperty('GH_TOKEN');
+  if (!repo || !token) { ui.alert('先に「買取表ツール」→「初期設定（GitHub連携）」を行ってください。'); return; }
+  const res = UrlFetchApp.fetch('https://api.github.com/repos/' + repo + '/actions/workflows/kaitori.yml/dispatches', {
+    method: 'post', contentType: 'application/json', muteHttpExceptions: true,
+    headers: { Authorization: 'Bearer ' + token, Accept: 'application/vnd.github+json' },
+    payload: JSON.stringify({ ref: 'main', inputs: { post_x: postX } })
+  });
+  if (res.getResponseCode() === 204) {
+    ui.alert('作成を開始しました。\n3〜5分ほどでWebページと印刷用PDFが更新されます。' + (postX ? '\nXへの投稿も行います。' : ''));
+  } else {
+    ui.alert('開始できませんでした（' + res.getResponseCode() + '）。\n' + res.getContentText().slice(0, 300));
+  }
+}
+
+/* ---------- ドライブ上の画像の名前変更と紐づけ ---------- */
+function linkImages() {
+  const ui = SpreadsheetApp.getUi();
+  const sh = SpreadsheetApp.getActive().getSheetByName('カード一覧');
+  const last = sh.getLastRow();
+  const data = sh.getRange(2, 1, last - 1, 14).getValues();
+  const props = PropertiesService.getDocumentProperties();
+  let rootId = props.getProperty('IMG_FOLDER_ID');
+  if (!rootId) {
+    const it = DriveApp.getFoldersByName('カード画像');
+    if (!it.hasNext()) { ui.alert('ドライブに「カード画像」フォルダが見つかりません。'); return; }
+    rootId = it.next().getId();
+    props.setProperty('IMG_FOLDER_ID', rootId);
+  }
+  const root = DriveApp.getFolderById(rootId);
+  const need = {};
+  data.forEach((r, i) => { if (!r[12]) (need[r[6]] = need[r[6]] || []).push(i); });
+  const t0 = Date.now();
+  let done = 0; const notFound = [];
+  const save = () => sh.getRange(2, 13, data.length, 2).setValues(data.map(r => [r[12], r[13]]));
+  for (const fname in need) {
+    const fit = root.getFoldersByName(fname);
+    if (!fit.hasNext()) { need[fname].forEach(i => notFound.push(data[i][5])); continue; }
+    const files = {};
+    const it = fit.next().getFiles();
+    while (it.hasNext()) { const f = it.next(); files[f.getName()] = f; }
+    for (const i of need[fname]) {
+      const r = data[i];
+      const f = files[r[5]] || files[r[10]];
+      if (!f) { notFound.push(r[5]); continue; }
+      if (f.getName() !== r[5]) f.setName(r[5]);
+      r[12] = f.getId();
+      r[13] = 'https://lh3.googleusercontent.com/d/' + f.getId();
+      done++;
+    }
+    if (Date.now() - t0 > 270000) {
+      save();
+      ui.alert('途中まで完了しました（今回 ' + done + ' 枚）。\nもう一度「買取表ツール」→「画像の名前変更と紐づけ」を実行してください。');
+      return;
+    }
+  }
+  save();
+  const left = data.filter(r => !r[12]).length;
+  ui.alert(left === 0 ? 'すべて完了しました（今回 ' + done + ' 枚）。'
+    : '完了しましたが、見つからない画像が ' + left + ' 枚あります。\n例: ' + notFound.slice(0, 5).join('\n'));
+}
