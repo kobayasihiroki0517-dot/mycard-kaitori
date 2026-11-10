@@ -53,7 +53,9 @@ def read_sheet(url):
     idx = {k: head.index(v) for k, v in COL.items() if v in head}
     missing = [COL[k] for k in ('exp', 'num', 'name', 'price', 'show', 'img') if k not in idx]
     if missing:
-        sys.exit('買取表シートに次の見出しが見つかりません: ' + ', '.join(missing))
+        sys.exit('買取表シートに次の見出しが見つかりません: ' + ', '.join(missing)
+                 + '\n読み込んだ1行目: ' + ' / '.join(head[:8])
+                 + '\n→「ウェブに公開」で「買取表」シートと「カンマ区切り形式（.csv）」を選んでいるか確認してください')
     g = lambda r, k: (r[idx[k]].strip() if k in idx and idx[k] < len(r) else '')
     cards, skipped = [], []
     for n, r in enumerate(rows[1:], start=2):
