@@ -128,7 +128,8 @@ const $=id=>document.getElementById(id);
 const esc=s=>String(s??'').replace(/[&<>"]/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c]));
 const yen=p=>p===''||p==null?'―':typeof p==='string'?`<span class="tx">${esc(p)}</span>`:'<small>¥</small>'+Number(p).toLocaleString('ja-JP');
 const ptxt=p=>p===''||p==null?'':typeof p==='string'?p:'¥'+Number(p).toLocaleString('ja-JP');
-const pnum=c=>typeof c.price==='number'?c.price:0;
+// 並び順用の値：買取保証は通常価格のカードより必ず安い扱い（保証どうしは保証額の順）
+const pnum=c=>(c.g?-1e7:0)+(typeof c.price==='number'?c.price:0);
 const pv=c=>c.g?`<span class="gp"><button type="button" class="gb">買取保証</button>${c.price!==''&&c.price!=null?`<span>${yen(c.price)}</span>`:''}</span>`:yen(c.price);
 const sized=(u,w)=>/googleusercontent/.test(u)?u+'=w'+w:u;
 const PAGE=120; let shown=PAGE, view='list', L=[];

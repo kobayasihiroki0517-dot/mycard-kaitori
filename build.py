@@ -77,11 +77,11 @@ def read_sheet(url):
             continue
         num = g(r, 'fullnum') or g(r, 'num')
         cards.append(dict(exp=g(r, 'exp'), num=num, name=g(r, 'name'), rr=g(r, 'rr'),
-                          price=price_of(g(r, 'price')), feat=g(r, 'feat') in ('○', '◯', 'o', 'O'),
+                          price=price_of(g(r, 'price')), guar=g(r, 'src') == '買取保証', feat=g(r, 'feat') in ('○', '◯', 'o', 'O'),
                           order=to_int(g(r, 'order')), url=g(r, 'img'), row=n))
-    # 表示順（小さい順）→ 未入力は後ろで買取価格の高い順
-    num = lambda p: p if isinstance(p, int) else 0
-    cards.sort(key=lambda c: (c['order'] is None, c['order'] or 0, -num(c['price'])))
+    # 表示順（小さい順）→ 未入力は買取価格の高い順。買取保証は一番安い扱いで後ろへ
+    num = lambda c: (-10**7 if c['guar'] else 0) + (c['price'] if isinstance(c['price'], int) else 0)
+    cards.sort(key=lambda c: (c['order'] is None, c['order'] or 0, -num(c)))
     return cards, skipped, prices
 
 
