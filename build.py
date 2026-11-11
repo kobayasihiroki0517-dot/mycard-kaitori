@@ -133,7 +133,7 @@ def main():
         sys.exit('SHEET_CSV_URL が設定されていません')
     cards, skipped, prices = read_sheet(url)
     if not cards:
-        sys.exit('掲載「○」のカードがありません')
+        print('掲載「○」のカードがないため、X用画像と印刷用PDFは作りません（Webページのみ作成）')
     print(f'掲載カード {len(cards)} 枚（目玉 {sum(c["feat"] for c in cards)} 枚）')
     for s in skipped:
         print('  画像なしのため除外:', s)
@@ -144,10 +144,11 @@ def main():
         shutil.rmtree(SITE)
     os.makedirs(SITE)
 
-    xs = x_images(cards, up)
+    xs = x_images(cards, up) if cards else []
     for i, im in enumerate(xs, 1):
         im.save(os.path.join(SITE, f'x_{i}.png'), optimize=True)
-    save_pdf(a4_pages(cards, up), os.path.join(SITE, 'kaitori.pdf'))
+    if cards:
+        save_pdf(a4_pages(cards, up), os.path.join(SITE, 'kaitori.pdf'))
 
     all_cards = read_all_cards(url, prices) or cards
     print(f'Webページ掲載 {len(all_cards)} 枚')

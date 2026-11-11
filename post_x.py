@@ -46,6 +46,8 @@ def main():
         sys.exit('XのAPIキーが設定されていないため投稿しません')
     cfg = yaml.safe_load(open(os.path.join(HERE, 'config.yml'), encoding='utf-8'))
     info = json.load(open(os.path.join(SITE, 'cards.json'), encoding='utf-8'))
+    if not info.get('x_images'):
+        print('掲載「○」のカードがないため、Xには投稿しません'); return
     text = compose(info, cfg, os.environ.get('SITE_URL', ''))
     print('---- 投稿文 ----\n' + text + '\n----------------')
 
