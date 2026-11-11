@@ -3,6 +3,10 @@ function onOpen() {
   SpreadsheetApp.getUi().createMenu('買取表ツール')
     .addItem('チェックしたカードを買取表に追加', 'addCheckedCards')
     .addSeparator()
+    .addItem('POSから買取価格を取り込む', 'importPosNow')
+    .addItem('POS定時取込をオン（1時間ごと）', 'enablePosSchedule')
+    .addItem('POS定時取込をオフ', 'disablePosSchedule')
+    .addSeparator()
     .addItem('買取表を更新（Web・印刷用PDF）', 'runUpdate')
     .addItem('買取表を更新してXにも投稿', 'runUpdateAndPost')
     .addSeparator()
@@ -26,6 +30,7 @@ function addCheckedCards() {
   let row = cur.findIndex(r => !r[0]);           // 買取表の最初の空き行
   row = row === -1 ? cur.length + 2 : row + 2;
   const added = [], skipped = [];
+  const linkCol = dst.getRange(1, 1, 1, dst.getLastColumn()).getDisplayValues()[0].indexOf('POS連動') + 1;
   picked.forEach(p => {
     const key = p.v.join('|');
     if (have.has(key)) { skipped.push(p.v[2]); return; }
@@ -33,12 +38,13 @@ function addCheckedCards() {
     const r = dst.getRange(row, 1, 1, 4);
     dst.getRange(row, 2).setNumberFormat('@');
     r.setValues([p.v]);
+    if (linkCol) dst.getRange(row, linkCol).setValue('○');
     have.add(key); added.push(p.v[2]); row++;
   });
   picked.forEach(p => src.getRange(8 + p.i, 1).setValue(false));
   ui.alert('買取表に ' + added.length + ' 枚追加しました。' +
     (skipped.length ? '\n（すでに買取表にあるため追加しなかったカード: ' + skipped.join('、') + '）' : '') +
-    '\n買取表シートで価格と「掲載」の○を入力してください。');
+    (linkCol ? '\n買取価格は次回のPOS取込で自動入力されます。「掲載」の○を入力してください。' : '\n買取表シートで価格と「掲載」の○を入力してください。'));
 }
 
 /* ---------- GitHub の自動作成を呼び出す ---------- */
