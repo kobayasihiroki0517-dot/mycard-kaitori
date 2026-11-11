@@ -130,7 +130,7 @@ def read_all_cards(sheet_url, prices):
 
 
 RULES_GID = '224697346'   # 「価格ルール」シート
-DEFAULT_RULES = dict(desc='カードラッシュに買取価格の掲載がないカードは、以下の金額で買取を保証します。', rows=[
+DEFAULT_RULES = dict(desc='買取価格の掲載がないカードは、以下の金額で買取を保証します。', rows=[
     dict(rr='UR', reg='I,J', ex='', amount=200), dict(rr='SAR', reg='I,J', ex='', amount=200),
     dict(rr='SR', reg='I,J', ex='グッズ', amount=200), dict(rr='CHR', reg='', ex='', amount=30),
     dict(rr='AR', reg='', ex='', amount=30), dict(rr='RR', reg='I,J', ex='', amount=10),
