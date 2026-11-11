@@ -49,21 +49,31 @@ h2{font-size:19px;color:var(--red);margin:4px 0 12px;font-weight:900}
 .card .nm{padding:4px 8px 8px;font-weight:900;font-size:15px;line-height:1.35;flex:1}
 .card .pr{background:var(--red);color:#fff;text-align:center;font-size:26px;padding:6px 4px 7px;text-shadow:2px 2px 0 var(--dred)}
 .feat .card .nm{font-size:18px}.feat .card .pr{font-size:34px}
-/* リスト表示 */
+/* リスト表示：パソコンは表形式（画像・エキスパンション・型番・レアリティ・カード名・種類・買取価格）、スマホは名前の下にタグ */
 .list{background:var(--panel);border:1px solid var(--line);border-radius:12px;overflow:hidden}
-.li{display:grid;grid-template-columns:44px 86px minmax(0,1fr) auto;gap:12px;align-items:center;padding:8px 14px;border-top:1px solid var(--line)}
-.li:first-child{border-top:0}
-.li:nth-child(even){background:var(--row)}
-.li img{width:44px;aspect-ratio:868/1212;object-fit:cover;border-radius:3px;background:var(--bg);display:block}
-.li .tg{display:flex;flex-direction:column;gap:3px;align-items:flex-start}
-.li .nm{min-width:0}
-.li .cn{display:block;font-weight:900;font-size:15px;line-height:1.35}
+.li{display:grid;grid-template-columns:48px 112px 104px 72px minmax(0,1fr) 128px 140px;gap:14px;align-items:center;padding:8px 16px;border-top:1px solid var(--line)}
+.li.hd{border-top:0;background:var(--ink);color:#fff;font-size:12px;font-weight:700;padding-block:9px}
+.li:nth-child(odd):not(.hd){background:var(--row)}
+.li img{width:48px;aspect-ratio:868/1212;object-fit:cover;border-radius:3px;background:var(--bg);display:block}
+.li .c-num{font-family:var(--en);font-weight:700;font-size:13px;color:var(--sub);white-space:nowrap}
+.li .c-kind{font-size:13px;color:var(--sub)}
+.li .cn{display:block;font-weight:900;font-size:16px;line-height:1.35}
+.li .sub{display:none}
+.li .pr{color:var(--red);font-size:22px;text-align:right;white-space:nowrap}
+.li.hd .pr{color:#fff;font-size:12px;font-family:var(--jp)}
+.li.f:not(.hd){box-shadow:inset 4px 0 0 var(--red)}
 .li .th{border:0;padding:0;background:none;cursor:zoom-in;display:block;border-radius:3px}
 .li .th:hover img{outline:2px solid var(--red);outline-offset:1px}
 .li .th:focus-visible{outline:2px solid var(--red);outline-offset:2px}
-.li .nm .num{margin:0;display:block}
-.li .pr{color:var(--red);font-size:22px;text-align:right;white-space:nowrap}
-.li.f{box-shadow:inset 4px 0 0 var(--red)}
+@media (max-width:900px){.li{grid-template-columns:48px 96px 92px 64px minmax(0,1fr) 120px}.li .c-kind{display:none}}
+@media (max-width:640px){
+ .li{grid-template-columns:48px minmax(0,1fr) auto;gap:10px;padding:8px 10px}
+ .li .c-exp,.li .c-num,.li .c-rr,.li .c-kind{display:none}
+ .li.hd{display:none}
+ .li .sub{display:flex;flex-wrap:wrap;align-items:center;gap:4px;margin-top:4px}
+ .li .sub .num{margin:0 0 0 2px;font-size:12px}
+ .li .pr{font-size:19px}
+}
 #pop{position:fixed;z-index:20;pointer-events:none;width:260px;border-radius:10px;box-shadow:0 10px 30px rgba(0,0,0,.35);background:var(--panel);padding:6px}
 #pop img{width:100%;display:block;border-radius:6px;aspect-ratio:868/1212;object-fit:cover;background:var(--bg)}
 #modal{position:fixed;inset:0;z-index:30;background:rgba(20,15,14,.78);display:grid;place-items:center;padding:24px}
@@ -74,8 +84,7 @@ h2{font-size:19px;color:var(--red);margin:4px 0 12px;font-weight:900}
 footer{background:var(--ink);color:#fff;text-align:center;font-size:13px;padding-block:14px}
 @media (max-width:760px){.tools{grid-template-columns:repeat(2,minmax(0,1fr))}.tools input{grid-column:1/-1}.view{grid-column:1/-1;justify-self:start}}
 @media (max-width:480px){.hd img{height:38px}.grid{grid-template-columns:repeat(2,minmax(0,1fr));gap:10px}.grid.feat{grid-template-columns:repeat(2,minmax(0,1fr))}
- .card .pr{font-size:21px}.feat .card .pr{font-size:24px}.feat .card .nm{font-size:15px}
- .li{grid-template-columns:40px minmax(0,1fr) auto;gap:10px;padding:8px 10px}.li .tg{display:none}.li .pr{font-size:18px}}
+ .card .pr{font-size:21px}.feat .card .pr{font-size:24px}.feat .card .nm{font-size:15px}}
 @media (prefers-reduced-motion:no-preference){.card{transition:transform .15s}.card:hover{transform:translateY(-2px)}}
 </style></head><body>
 <header><div class="wrap hd"><img src="__LOGO__" alt="MyCard マイカード"><div class="ttl"><h1>ポケモンカード シングル買取表</h1><time>__UPDATED__</time></div></div></header>
@@ -116,7 +125,9 @@ const tags=c=>(c.exp?`<span class="tag">${esc(c.exp)}</span>`:'')+(c.rr?`<span c
 const card=(c,i)=>`<article class="card"><div class="im"><img loading="lazy" src="${esc(sized(c.img,400))}" alt="${esc(c.name)}"></div>
 <div class="meta">${tags(c)}<span class="num">${esc(c.num)}</span></div><div class="nm">${esc(c.name)}</div><div class="pr yen">${yen(c.price)}</div></article>`;
 const row=(c,i)=>`<div class="li${c.feat?' f':''}"><button type="button" class="th" data-i="${i}" aria-label="${esc(c.name)}の画像を拡大"><img loading="lazy" src="${esc(sized(c.img,100))}" alt=""></button>
-<div class="tg">${tags(c)}</div><div class="nm"><span class="cn">${esc(c.name)}</span><span class="num">${esc(c.num)}</span></div><div class="pr yen">${yen(c.price)}</div></div>`;
+<div class="c-exp">${c.exp?`<span class="tag">${esc(c.exp)}</span>`:''}</div><div class="c-num">${esc(c.num)}</div><div class="c-rr">${c.rr?`<span class="tag r">${esc(c.rr)}</span>`:''}</div>
+<div class="nm"><span class="cn">${esc(c.name)}</span><span class="sub">${tags(c)}<span class="num">${esc(c.num)}</span></span></div><div class="c-kind">${esc(c.kind||'')}</div><div class="pr yen">${yen(c.price)}</div></div>`;
+const HEAD='<div class="li hd" aria-hidden="true"><span>画像</span><span>エキスパンション</span><span>型番</span><span>レアリティ</span><span>カード名</span><span class="c-kind">種類</span><span class="pr">買取価格</span></div>';
 function filtered(){
  const q=$('q').value.trim(),e=$('exp').value,r=$('rr').value,k=$('kind').value,s=$('sort').value;
  let A=CARDS.filter(c=>(!q||c.name.includes(q))&&(!e||c.exp===e)&&(!r||c.rr===r)&&(!k||c.kind===k));
@@ -132,7 +143,7 @@ function render(reset){
  $('featS').hidden=!F.length;$('feat').innerHTML=F.map(card).join('');
  const part=L.slice(0,shown);
  $('out').className=view==='grid'?'grid':'list';
- $('out').innerHTML=view==='grid'?part.map(card).join(''):part.map(c=>row(c,L.indexOf(c))).join('');
+ $('out').innerHTML=view==='grid'?part.map(card).join(''):HEAD+part.map((c,j)=>row(c,j)).join('');
  $('out').hidden=!part.length;
  $('more').hidden=shown>=L.length;$('empty').hidden=L.length>0;$('count').textContent=L.length.toLocaleString('ja-JP');
  $('vList').setAttribute('aria-pressed',view==='list');$('vGrid').setAttribute('aria-pressed',view==='grid');
