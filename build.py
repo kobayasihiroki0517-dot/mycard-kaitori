@@ -129,6 +129,25 @@ def read_all_cards(sheet_url, prices):
     return out
 
 
+EXP_GID = '552350923'     # 「エキスパンション一覧」シート
+
+
+def read_exp_order(sheet_url):
+    """エキスパンションの発売順（1＝新しい）。シートの「発売順」列 → 読めなければ同梱の exp_order.json"""
+    url = os.environ.get('SHEET_EXP_CSV_URL') or re.sub(r'gid=\d+', 'gid=' + EXP_GID, sheet_url)
+    try:
+        rows = list(csv.reader(io.StringIO(fetch(url).decode('utf-8-sig'))))
+        head = [h.strip() for h in rows[0]]
+        ci = next(i for i, h in enumerate(head) if h.startswith('発売順'))
+        out = {r[0].strip(): to_int(r[ci]) for r in rows[1:] if len(r) > ci and r[0].strip() and to_int(r[ci])}
+        if out:
+            return out
+        raise ValueError('発売順が空です')
+    except Exception as e:
+        print('エキスパンション一覧の発売順を読み込めませんでした（同梱の順番を使います）:', e)
+        return {c: i + 1 for i, c in enumerate(json.load(open(os.path.join(HERE, 'exp_order.json'), encoding='utf-8')))}
+
+
 RULES_GID = '224697346'   # 「価格ルール」シート
 DEFAULT_RULES = dict(desc='買取価格の掲載がないカードは、以下の金額で買取を保証します。', rows=[
     dict(rr='UR', reg='I,J', ex='', amount=200), dict(rr='SAR', reg='I,J', ex='', amount=200),
@@ -198,7 +217,7 @@ def main():
     print(f'Webページ掲載 {len(all_cards)} 枚')
     web_cards = [dict(c, img=c['url']) for c in all_cards]
     with open(os.path.join(SITE, 'index.html'), 'w', encoding='utf-8') as f:
-        f.write(build_web(web_cards, up, 'logo_h.png', read_rules(url)))
+        f.write(build_web(web_cards, up, 'logo_h.png', read_rules(url), read_exp_order(url)))
     shutil.copy(os.path.join(HERE, 'logo_h.png'), SITE)
     with open(os.path.join(SITE, 'cards.json'), 'w', encoding='utf-8') as f:
         json.dump(dict(updated=up, x_images=len(xs),

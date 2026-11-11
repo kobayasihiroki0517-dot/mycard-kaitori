@@ -108,7 +108,7 @@ footer{background:var(--ink);color:#fff;text-align:center;font-size:13px;padding
  <select id="exp" aria-label="エキスパンション"><option value="">全エキスパンション</option></select>
  <select id="rr" aria-label="レアリティ"><option value="">全レアリティ</option></select>
  <select id="kind" aria-label="カードの種類"><option value="">全種類</option></select>
- <select id="sort" aria-label="並び順"><option value="high">買取価格の高い順</option><option value="low">買取価格の安い順</option><option value="no">エキスパンション・番号順</option></select>
+ <select id="sort" aria-label="並び順"><option value="high">買取価格の高い順</option><option value="low">買取価格の安い順</option><option value="no">発売の新しい順（エキスパンション・番号）</option></select>
  <div class="view" role="group" aria-label="表示切替"><button id="vList" type="button">リスト</button><button id="vGrid" type="button">画像</button></div>
 </div>
 <div class="bar"><span><b id="count">0</b> 件</span><span>価格は1枚あたりの買取価格（税込）です</span></div>
@@ -124,6 +124,8 @@ footer{background:var(--ink);color:#fff;text-align:center;font-size:13px;padding
 <script>
 const CARDS=__DATA__;
 const RULES=__RULES__;
+const EO=__EXPORDER__; // エキスパンションの発売順（1＝新しい。未登録は新しい扱いで先頭）
+const eo=e=>EO[e]||0;
 const $=id=>document.getElementById(id);
 const esc=s=>String(s??'').replace(/[&<>"]/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c]));
 const yen=p=>p===''||p==null?'―':typeof p==='string'?`<span class="tx">${esc(p)}</span>`:'<small>¥</small>'+Number(p).toLocaleString('ja-JP');
@@ -134,9 +136,9 @@ const pv=c=>c.g?`<span class="gp"><button type="button" class="gb">買取保証<
 const sized=(u,w)=>/googleusercontent/.test(u)?u+'=w'+w:u;
 const PAGE=120; let shown=PAGE, view='list', L=[];
 try{view=localStorage.getItem('mycard_view')||'list'}catch(e){}
-// 絞り込みの選択肢（エキスパンションは掲載の多い順、レアリティは高い順）
+// 絞り込みの選択肢（エキスパンションは発売の新しい順、レアリティは高い順）
 const cnt=k=>{const o={};CARDS.forEach(c=>{if(c[k])o[c[k]]=(o[c[k]]||0)+1});return o};
-const ec=cnt('exp');Object.keys(ec).sort((a,b)=>ec[b]-ec[a]).forEach(v=>$('exp').add(new Option(v+'（'+ec[v]+'）',v)));
+const ec=cnt('exp');Object.keys(ec).sort((a,b)=>eo(a)-eo(b)||a.localeCompare(b)).forEach(v=>$('exp').add(new Option(v+'（'+ec[v]+'）',v)));
 const RO=['MUR','SAR','UR','SR','MA','AR','BWR','TR','RR','R','U','C'];const rc=cnt('rr');
 Object.keys(rc).sort((a,b)=>(RO.indexOf(a)+99)%99-(RO.indexOf(b)+99)%99).forEach(v=>$('rr').add(new Option(v+'（'+rc[v]+'）',v)));
 const KO=['ポケモン','グッズ','ポケモンのどうぐ','サポート','スタジアム','エネルギー'];const kc=cnt('kind');
@@ -153,7 +155,7 @@ function filtered(){
  let A=CARDS.filter(c=>(!q||c.name.includes(q))&&(!e||c.exp===e)&&(!r||c.rr===r)&&(!k||c.kind===k));
  if(s==='high')A.sort((a,b)=>pnum(b)-pnum(a));
  else if(s==='low')A.sort((a,b)=>pnum(a)-pnum(b));
- else A.sort((a,b)=>a.exp.localeCompare(b.exp)||a.num.localeCompare(b.num,'ja',{numeric:true}));
+ else A.sort((a,b)=>eo(a.exp)-eo(b.exp)||a.exp.localeCompare(b.exp)||a.num.localeCompare(b.num,'ja',{numeric:true}));
  return A;
 }
 function render(reset){
@@ -195,9 +197,10 @@ render(true);
 </script></body></html>'''
 
 
-def build(cards, updated, logo_src, rules=None):
+def build(cards, updated, logo_src, rules=None, exp_order=None):
     rules = rules or dict(desc='', rows=[])
     data = json.dumps([{k: c.get(k, '') for k in ('exp', 'num', 'name', 'rr', 'kind', 'price', 'feat', 'img', 'g')} for c in cards],
                       ensure_ascii=False, separators=(',', ':'))
     return TEMPLATE.replace('__DATA__', data.replace('</', '<\\/')).replace('__UPDATED__', html.escape(updated)).replace('__LOGO__', logo_src).replace(
+        '__EXPORDER__', json.dumps(exp_order or {}, ensure_ascii=False)).replace(
         '__RULES__', json.dumps(rules, ensure_ascii=False).replace('</', '<\\/'))
