@@ -136,9 +136,11 @@ function importPos_(force, interactive) {
     'カード一覧：' + ok + ' / ' + n + ' 枚が一致\n' +
     '買取表：' + changes.length + ' 件の価格を更新' + (changes.length ? '\n' + changes.slice(0, 15).join('\n') + (changes.length > 15 ? '\n…ほか' + (changes.length - 15) + '件' : '') : '') +
     (showChg.length ? '\n掲載の自動変更：' + showChg.length + ' 件\n' + showChg.slice(0, 10).join('\n') : '');
-  // 定時実行で価格が変わったら、Web・PDFを自動で作り直す
-  if (!interactive && (changes.length || showChg.length) && props.getProperty('POS_AUTO_PUBLISH') === '1') dispatchQuiet_(false);
   say(msg);
+  // POSで埋まらなかった未入力の価格をカードラッシュで補完
+  const crFilled = fillFromCardrush_(interactive);
+  // 定時実行で価格が変わったら、Web・PDFを自動で作り直す
+  if (!interactive && (changes.length || showChg.length || crFilled) && props.getProperty('POS_AUTO_PUBLISH') === '1') dispatchQuiet_(false);
 }
 
 /* 定時取込のオン・オフ */
