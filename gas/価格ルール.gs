@@ -3,17 +3,37 @@
  *  ・カードラッシュに金額なし → 「買取保証」。保証額は価格ルールシートの表（在庫に関係なく固定）
  *  結果はカード一覧の「▼表示価格」「▼価格区分」に書き、買取表の「POS連動」○の行にも反映する
  */
+const TRAINERS_ = ['グッズ', 'ポケモンのどうぐ', 'サポート', 'スタジアム'];
+const splitList_ = s => String(s).split(/[,、，\s]+/).map(x => x.trim()).filter(Boolean);
+/** カード一覧の「種類」（ワザ・特性など）をWebと同じ6種類にそろえる */
+function kindOf_(k) {
+  k = String(k || '');
+  if (k === 'ワザ' || k === '特性' || k === 'ポケモン') return 'ポケモン';
+  if (k.indexOf('エネルギー') >= 0) return 'エネルギー';
+  return k;
+}
+/** 「トレーナーズ」を4種類に広げる */
+function kindList_(s) {
+  const out = [];
+  splitList_(s).forEach(x => x === 'トレーナーズ' ? TRAINERS_.forEach(t => out.push(t)) : out.push(x));
+  return out;
+}
+/** 価格ルールシート：A〜E 買取保証の表 ／ G〜H 在庫による割合 */
 function readRules_() {
   const sh = SpreadsheetApp.getActive().getSheetByName('価格ルール');
   if (!sh) throw new Error('「価格ルール」シートがありません');
-  const v = sh.getRange(3, 1, 10, 7).getDisplayValues();
-  const guarantee = v.filter(r => r[0] && r[3] !== '').map(r => ({
-    rr: r[0].trim(),
-    regs: r[1].split(/[,、\s]+/).map(s => s.trim().toUpperCase()).filter(Boolean),
-    exclude: r[2].split(/[,、\s]+/).map(s => s.trim()).filter(Boolean),
-    amount: Number(String(r[3]).replace(/[^\d]/g, '')) || 0
-  }));
-  const ratio = v.filter(r => r[5] !== '' && r[6] !== '').map(r => ({ min: Number(r[5]), pct: Number(String(r[6]).replace(/[^\d.]/g, '')) }))
+  const v = sh.getRange(3, 1, 10, 8).getDisplayValues();
+  const guarantee = v.filter(r => r[0] && String(r[4]).trim() !== '').map(r => {
+    const amt = String(r[4]).trim(), digits = amt.replace(/[¥￥,，円\s]/g, '');
+    return {
+      rr: splitList_(r[0]),
+      regs: splitList_(r[1]).map(x => x.toUpperCase()),
+      kinds: kindList_(r[2]),
+      exclude: kindList_(r[3]),
+      amount: /^\d+$/.test(digits) ? Number(digits) : amt     // 数字なら金額、それ以外（1cm10円など）は文字のまま
+    };
+  });
+  const ratio = v.filter(r => r[6] !== '' && r[7] !== '').map(r => ({ min: Number(r[6]), pct: Number(String(r[7]).replace(/[^\d.]/g, '')) }))
                  .sort((a, b) => a.min - b.min);
   return { guarantee: guarantee, ratio: ratio };
 }
@@ -22,9 +42,14 @@ function ratioFor_(rules, stock) {
   rules.ratio.forEach(r => { if (stock >= r.min) pct = r.pct; });
   return pct;
 }
+/** 上の行から順に判定し、最初に当てはまった行の保証額（「それ以外」はどのレアリティにも当てはまる） */
 function guaranteeFor_(rules, rr, reg, kind) {
-  const g = rules.guarantee.find(x => x.rr === rr && (!x.regs.length || x.regs.indexOf(String(reg).toUpperCase()) >= 0) &&
-                                       x.exclude.indexOf(kind) < 0);
+  kind = kindOf_(kind); reg = String(reg).toUpperCase();
+  const g = rules.guarantee.find(x =>
+    (x.rr.indexOf(rr) >= 0 || x.rr.indexOf('それ以外') >= 0) &&
+    (!x.regs.length || x.regs.indexOf(reg) >= 0) &&
+    (!x.kinds.length || x.kinds.indexOf(kind) >= 0) &&
+    x.exclude.indexOf(kind) < 0);
   return g ? g.amount : '';
 }
 /** 1枚分の価格を決める（戻り値: [表示価格, 区分]） */

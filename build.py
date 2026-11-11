@@ -42,8 +42,15 @@ def updated_label(now=None):
 
 
 def to_int(v):
-    v = re.sub(r'[^\d]', '', str(v or ''))
-    return int(v) if v else None
+    """「1,230」「¥1230」→ 1230。「1cm10円」のような文字は None"""
+    v = re.sub(r'[¥￥,，円\s]', '', str(v or ''))
+    return int(v) if v.isdigit() else None
+
+
+def price_of(v):
+    """金額なら数値、「1cm10円」などの文字ならそのまま、空なら None"""
+    v = str(v or '').strip()
+    return to_int(v) if to_int(v) is not None else (v or None)
 
 
 def read_sheet(url):
@@ -59,9 +66,9 @@ def read_sheet(url):
     g = lambda r, k: (r[idx[k]].strip() if k in idx and idx[k] < len(r) else '')
     cards, skipped, prices = [], [], {}
     for n, r in enumerate(rows[1:], start=2):
-        if g(r, 'exp') and to_int(g(r, 'price')) is not None:
+        if g(r, 'exp') and price_of(g(r, 'price')) is not None:
             key = '|'.join([g(r, 'exp'), g(r, 'num').zfill(3) if g(r, 'num').isdigit() else g(r, 'num'), g(r, 'name'), g(r, 'reg')])
-            prices[key] = dict(price=to_int(g(r, 'price')), guar=g(r, 'src') == '買取保証',
+            prices[key] = dict(price=price_of(g(r, 'price')), guar=g(r, 'src') == '買取保証',
                                feat=g(r, 'feat') in ('○', '◯', 'o', 'O') and g(r, 'show') in ('○', '◯', 'o', 'O'))
         if not g(r, 'exp') or g(r, 'show') not in ('○', '◯', 'o', 'O'):
             continue
@@ -70,10 +77,11 @@ def read_sheet(url):
             continue
         num = g(r, 'fullnum') or g(r, 'num')
         cards.append(dict(exp=g(r, 'exp'), num=num, name=g(r, 'name'), rr=g(r, 'rr'),
-                          price=to_int(g(r, 'price')), feat=g(r, 'feat') in ('○', '◯', 'o', 'O'),
+                          price=price_of(g(r, 'price')), feat=g(r, 'feat') in ('○', '◯', 'o', 'O'),
                           order=to_int(g(r, 'order')), url=g(r, 'img'), row=n))
     # 表示順（小さい順）→ 未入力は後ろで買取価格の高い順
-    cards.sort(key=lambda c: (c['order'] is None, c['order'] or 0, -(c['price'] or 0)))
+    num = lambda p: p if isinstance(p, int) else 0
+    cards.sort(key=lambda c: (c['order'] is None, c['order'] or 0, -num(c['price'])))
     return cards, skipped, prices
 
 
@@ -107,7 +115,7 @@ def read_all_cards(sheet_url, prices):
         if p and not p['guar']:            # 買取表で価格を決めているカード
             price, guar = p['price'], False
         elif cls:                           # 価格ルールの結果（▼表示価格・▼価格区分）
-            price, guar = to_int(g(r, '▼表示価格')), cls == '買取保証'
+            price, guar = price_of(g(r, '▼表示価格')), cls == '買取保証'
             if p and p['guar']:
                 price = p['price']
         else:                               # ルール未適用の古いシート
@@ -125,7 +133,9 @@ RULES_GID = '224697346'   # 「価格ルール」シート
 DEFAULT_RULES = dict(desc='カードラッシュに買取価格の掲載がないカードは、以下の金額で買取を保証します。', rows=[
     dict(rr='UR', reg='I,J', ex='', amount=200), dict(rr='SAR', reg='I,J', ex='', amount=200),
     dict(rr='SR', reg='I,J', ex='グッズ', amount=200), dict(rr='CHR', reg='', ex='', amount=30),
-    dict(rr='AR', reg='', ex='', amount=30), dict(rr='RR', reg='I,J', ex='', amount=10)])
+    dict(rr='AR', reg='', ex='', amount=30), dict(rr='RR', reg='I,J', ex='', amount=10),
+    dict(rr='U,C,それ以外', reg='', kind='トレーナーズ', ex='', amount='1cm10円'),
+    dict(rr='U,C,それ以外', reg='', kind='ポケモン', ex='', amount='1cm10円')])
 
 
 def read_rules(sheet_url):
@@ -135,8 +145,8 @@ def read_rules(sheet_url):
         rows = list(csv.reader(io.StringIO(fetch(url).decode('utf-8-sig'))))
         if not rows or '買取保証' not in rows[0][0]:
             raise ValueError('価格ルールシートではありません')
-        out = [dict(rr=r[0].strip(), reg=r[1].strip(), ex=r[2].strip(), amount=to_int(r[3]))
-               for r in rows[2:12] if len(r) > 3 and r[0].strip() and to_int(r[3])]
+        out = [dict(rr=r[0].strip(), reg=r[1].strip(), kind=r[2].strip(), ex=r[3].strip(), amount=price_of(r[4]))
+               for r in rows[2:12] if len(r) > 4 and r[0].strip() and price_of(r[4]) is not None]
         desc = next((r[0].strip() for r in rows[16:18] if r and r[0].strip() and not r[0].startswith('【')), DEFAULT_RULES['desc'])
         return dict(desc=desc, rows=out or DEFAULT_RULES['rows'])
     except Exception as e:

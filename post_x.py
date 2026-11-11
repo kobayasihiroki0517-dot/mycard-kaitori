@@ -25,8 +25,8 @@ def x_len(text):
 
 def compose(info, cfg, site_url):
     xc = cfg['x_post']
-    feat = [c for c in info['cards'] if c['feat'] and c['price']] or \
-           sorted([c for c in info['cards'] if c['price']], key=lambda c: -c['price'])
+    priced = [c for c in info['cards'] if isinstance(c['price'], int) and c['price']]   # 「1cm10円」などは本文に載せない
+    feat = [c for c in priced if c['feat']] or sorted(priced, key=lambda c: -c['price'])
     lines = [xc['featured_line'].format(name=c['name'], rarity=c['rr'] or '', price=f"{c['price']:,}").replace('  ', ' ')
              for c in feat[:xc.get('max_featured', 3)]]
     while True:

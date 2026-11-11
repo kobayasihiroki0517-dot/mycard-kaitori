@@ -81,6 +81,8 @@ h2{font-size:19px;color:var(--red);margin:4px 0 12px;font-weight:900}
 #modal p{color:#fff;text-align:center;font-weight:900;margin:10px 0 0}
 .gb{display:inline-flex;align-items:center;gap:4px;font:inherit;font-family:var(--jp);font-weight:900;font-size:12px;line-height:1;letter-spacing:.04em;padding:5px 8px;border-radius:999px;border:0;background:var(--ink);color:#fff;cursor:help;vertical-align:middle;text-shadow:none}
 .gb::after{content:'?';display:inline-grid;place-items:center;width:14px;height:14px;border-radius:50%;background:#fff;color:var(--ink);font-size:10px}
+.tx{font-family:var(--jp);font-size:.62em;font-weight:900;white-space:nowrap}
+#gpop td.a .tx{font-size:13px}
 .gp{display:flex;flex-direction:column;align-items:flex-end;gap:4px}
 .card .gp{align-items:center}.card .pr .gb{background:#fff;color:var(--red)}.card .pr .gb::after{background:var(--red);color:#fff}
 #gpop{position:fixed;z-index:25;width:min(340px,calc(100vw - 32px));background:var(--panel);color:var(--ink);border:2px solid var(--red);border-radius:12px;box-shadow:0 12px 32px rgba(0,0,0,.3);padding:14px 16px;font-size:14px}
@@ -124,7 +126,9 @@ const CARDS=__DATA__;
 const RULES=__RULES__;
 const $=id=>document.getElementById(id);
 const esc=s=>String(s??'').replace(/[&<>"]/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c]));
-const yen=p=>p===''||p==null?'―':'<small>¥</small>'+Number(p).toLocaleString('ja-JP');
+const yen=p=>p===''||p==null?'―':typeof p==='string'?`<span class="tx">${esc(p)}</span>`:'<small>¥</small>'+Number(p).toLocaleString('ja-JP');
+const ptxt=p=>p===''||p==null?'':typeof p==='string'?p:'¥'+Number(p).toLocaleString('ja-JP');
+const pnum=c=>typeof c.price==='number'?c.price:0;
 const pv=c=>c.g?`<span class="gp"><button type="button" class="gb">買取保証</button>${c.price!==''&&c.price!=null?`<span>${yen(c.price)}</span>`:''}</span>`:yen(c.price);
 const sized=(u,w)=>/googleusercontent/.test(u)?u+'=w'+w:u;
 const PAGE=120; let shown=PAGE, view='list', L=[];
@@ -146,15 +150,15 @@ const HEAD='<div class="li hd" aria-hidden="true"><span>画像</span><span>エ�
 function filtered(){
  const q=$('q').value.trim(),e=$('exp').value,r=$('rr').value,k=$('kind').value,s=$('sort').value;
  let A=CARDS.filter(c=>(!q||c.name.includes(q))&&(!e||c.exp===e)&&(!r||c.rr===r)&&(!k||c.kind===k));
- if(s==='high')A.sort((a,b)=>(b.price||0)-(a.price||0));
- else if(s==='low')A.sort((a,b)=>(a.price||0)-(b.price||0));
+ if(s==='high')A.sort((a,b)=>pnum(b)-pnum(a));
+ else if(s==='low')A.sort((a,b)=>pnum(a)-pnum(b));
  else A.sort((a,b)=>a.exp.localeCompare(b.exp)||a.num.localeCompare(b.num,'ja',{numeric:true}));
  return A;
 }
 function render(reset){
  if(reset){shown=PAGE;L=filtered()}
  const plain=!$('q').value.trim()&&!$('exp').value&&!$('rr').value&&!$('kind').value;
- const F=plain?CARDS.filter(c=>c.feat).sort((a,b)=>b.price-a.price):[];
+ const F=plain?CARDS.filter(c=>c.feat).sort((a,b)=>pnum(b)-pnum(a)):[];
  $('featS').hidden=!F.length;$('feat').innerHTML=F.map(card).join('');
  const part=L.slice(0,shown);
  $('out').className=view==='grid'?'grid':'list';
@@ -175,11 +179,11 @@ $('out').addEventListener('mouseover',e=>{const b=e.target.closest('.li .th');if
 $('out').addEventListener('mousemove',e=>{if(pop.hidden)return;const w=260,h=370,x=e.clientX+24+w>innerWidth?e.clientX-w-24:e.clientX+24;pop.style.left=x+'px';pop.style.top=Math.max(8,Math.min(e.clientY-h/2,innerHeight-h-8))+'px'});
 $('out').addEventListener('mouseout',e=>{if(e.target.closest('.li .th'))pop.hidden=true});
 $('out').addEventListener('click',e=>{const b=e.target.closest('.li .th');if(!b)return;const c=L[b.dataset.i];pop.hidden=true;
- $('modal').querySelector('img').src=sized(c.img,800);$('modal').querySelector('p').textContent=c.name+'　'+(c.g?'買取保証'+(c.price?' ¥'+Number(c.price).toLocaleString('ja-JP'):''):'¥'+Number(c.price).toLocaleString('ja-JP'));$('modal').hidden=false});
+ $('modal').querySelector('img').src=sized(c.img,800);$('modal').querySelector('p').textContent=c.name+'　'+(c.g?'買取保証 ':'')+ptxt(c.price);$('modal').hidden=false});
 $('modal').addEventListener('click',()=>{$('modal').hidden=true});
 addEventListener('keydown',e=>{if(e.key==='Escape'){$('modal').hidden=true;gpop.hidden=true;gpin=false}});
 // 「買取保証」：カーソルを合わせる（スマホはタップ）と保証内容を表示
-$('gbody').innerHTML=`<h3>買取保証</h3><p>${esc(RULES.desc)}</p><table><thead><tr><th>レアリティ</th><th>対象</th><th style="text-align:right">保証額</th></tr></thead><tbody>${RULES.rows.map(r=>`<tr><td><span class="tag r">${esc(r.rr)}</span></td><td>${r.reg?'レギュレーション '+esc(r.reg):'すべて'}${r.ex?'<br><small>※'+esc(r.ex)+'を除く</small>':''}</td><td class="a"><small>¥</small>${Number(r.amount).toLocaleString('ja-JP')}</td></tr>`).join('')}</tbody></table>`;
+$('gbody').innerHTML=`<h3>買取保証</h3><p>${esc(RULES.desc)}</p><table><thead><tr><th>レアリティ</th><th>対象</th><th style="text-align:right">保証額</th></tr></thead><tbody>${RULES.rows.map(r=>`<tr><td><span class="tag r">${esc(r.rr)}</span></td><td>${[r.kind?esc(r.kind):'',r.reg?'レギュレーション '+esc(r.reg):''].filter(Boolean).join('<br>')||'すべて'}${r.ex?'<br><small>※'+esc(r.ex)+'を除く</small>':''}</td><td class="a">${yen(r.amount)}</td></tr>`).join('')}</tbody></table>`;
 const gpop=$('gpop');let gpin=false;
 const placeG=b=>{const r=b.getBoundingClientRect(),w=gpop.offsetWidth,h=gpop.offsetHeight;gpop.style.left=Math.max(16,Math.min(r.right-w+20,innerWidth-w-16))+'px';gpop.style.top=(r.bottom+h+12>innerHeight?Math.max(8,r.top-h-8):r.bottom+8)+'px'};
 document.addEventListener('mouseover',e=>{if(!hoverable||gpin)return;const b=e.target.closest('.gb');if(b){gpop.hidden=false;placeG(b)}else if(!e.target.closest('#gpop'))gpop.hidden=true});

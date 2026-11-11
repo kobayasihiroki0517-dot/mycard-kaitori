@@ -70,6 +70,10 @@ def panel(r,x,y,w,c,big=False):
     p=c.get('price')
     if p in (None,''):
         r.text((x+w/2,by+S['pb']/2),'―',r.F(S['price']),WHT,'mm')
+    elif isinstance(p,str):   # 「1cm10円」など文字の保証額
+        ps=int(S['price']*.6)
+        while ps>12 and r.tl(p,r.F(ps))>iw: ps-=1
+        r.text((x+w/2,by+S['pb']/2),p,r.F(ps),WHT,'mm',bold=1)
     else:
         txt=yen(p); ps=S['price']
         while ps>S['price']//2 and r.tl(txt,r.L(ps))+r.tl('¥',r.L(int(ps*.62)))+4>iw: ps-=1
