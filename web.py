@@ -31,6 +31,11 @@ main{padding-block:18px 40px}
 .view{display:flex;border:1px solid var(--line);border-radius:8px;overflow:hidden;background:var(--panel)}
 .view button{font:inherit;font-size:14px;font-weight:700;border:0;background:transparent;color:var(--sub);padding:9px 14px;cursor:pointer}
 .view button[aria-pressed="true"]{background:var(--ink);color:#fff}
+/* 検索・絞り込み欄はスクロールしても見出しの下に付いてくる */
+.tools{position:sticky;top:var(--hh,0px);z-index:4;background:var(--bg);padding-block:10px;margin-top:-10px}
+.tools.stuck{box-shadow:0 8px 12px -10px rgba(35,25,22,.45)}
+#fbtn{display:none;font:inherit;font-size:14px;font-weight:700;padding:9px 12px;border:1px solid var(--line);border-radius:8px;background:var(--panel);color:var(--ink);cursor:pointer;white-space:nowrap}
+#fbtn[aria-expanded="true"]{background:var(--ink);color:#fff;border-color:var(--ink)}
 .bar{display:flex;justify-content:space-between;align-items:baseline;margin:4px 0 12px;font-size:13px;color:var(--sub)}
 .bar b{color:var(--ink);font-family:var(--en);font-size:15px}
 h2{font-size:19px;color:var(--red);margin:4px 0 12px;font-weight:900}
@@ -100,15 +105,25 @@ h2{font-size:19px;color:var(--red);margin:4px 0 12px;font-weight:900}
 .more{display:block;margin:18px auto 0;font:inherit;font-weight:700;padding:10px 28px;border-radius:8px;border:1px solid var(--line);background:var(--panel);color:var(--ink);cursor:pointer}
 .empty{padding:40px 0;text-align:center;color:var(--sub)}
 footer{background:var(--ink);color:#fff;text-align:center;font-size:13px;padding-block:14px}
-@media (max-width:760px){.tools{grid-template-columns:repeat(2,minmax(0,1fr))}.tools input{grid-column:1/-1}.view{grid-column:1/-1;justify-self:start}}
+@media (max-width:760px){.tools{grid-template-columns:repeat(2,minmax(0,1fr))}.tools input{grid-column:1/-1}.view{grid-column:1/-1;justify-self:start}
+ /* スマホでスクロール中は「検索窓＋絞り込みボタン」だけにして画面を広く使う */
+ .tools.stuck{grid-template-columns:minmax(0,1fr) minmax(0,1fr) auto}
+ .tools.stuck input{grid-column:1/3}
+ .tools.stuck #fbtn{display:block;grid-column:3}
+ .tools.stuck:not(.open) select,.tools.stuck:not(.open) .view{display:none}
+ .tools.stuck select:nth-of-type(odd){grid-column:1}
+ .tools.stuck select:nth-of-type(even){grid-column:2/4}
+ .tools.stuck .view{grid-column:1/-1}}
 @media (max-width:480px){.hd img{height:38px}.grid{grid-template-columns:repeat(2,minmax(0,1fr));gap:10px}.grid.feat{grid-template-columns:repeat(2,minmax(0,1fr))}
  .card .pr{font-size:21px}.feat .card .pr{font-size:24px}.feat .card .nm{font-size:15px}}
 @media (prefers-reduced-motion:no-preference){.card{transition:transform .15s}.card:hover{transform:translateY(-2px)}}
 </style></head><body>
 <header><div class="wrap hd"><img src="__LOGO__" alt="MyCard マイカード"><div class="ttl"><h1>ポケモンカード シングル買取表</h1><time>__UPDATED__</time></div></div></header>
 <main class="wrap">
-<div class="tools">
+<div id="sent" aria-hidden="true"></div>
+<div class="tools" id="tools">
  <input id="q" type="search" placeholder="カード名で探す（例：ピカチュウ）" aria-label="カード名で検索">
+ <button id="fbtn" type="button" aria-expanded="false" aria-controls="tools">絞り込み</button>
  <select id="exp" aria-label="エキスパンション"><option value="">全エキスパンション</option></select>
  <select id="rr" aria-label="レアリティ"><option value="">全レアリティ</option></select>
  <select id="kind" aria-label="カードの種類"><option value="">全種類</option></select>
@@ -174,7 +189,15 @@ function render(reset){
  $('more').hidden=shown>=L.length;$('empty').hidden=L.length>0;$('count').textContent=L.length.toLocaleString('ja-JP');
  $('vList').setAttribute('aria-pressed',view==='list');$('vGrid').setAttribute('aria-pressed',view==='grid');
 }
-['q','exp','rr','kind','sort'].forEach(id=>$(id).addEventListener('input',()=>render(true)));
+// 見出しの高さぶん下に検索欄を固定。固定中は影を付け、スマホは検索窓だけにたたむ
+const tools=$('tools'),hdr=document.querySelector('header');
+const setHH=()=>document.documentElement.style.setProperty('--hh',hdr.offsetHeight+'px');setHH();
+if('ResizeObserver' in window)new ResizeObserver(setHH).observe(hdr);else addEventListener('resize',setHH);
+if('IntersectionObserver' in window){let io;const watch=()=>{io&&io.disconnect();io=new IntersectionObserver(es=>{const st=!es[0].isIntersecting&&es[0].boundingClientRect.top<hdr.offsetHeight+1;tools.classList.toggle('stuck',st);if(!st){tools.classList.remove('open');$('fbtn').setAttribute('aria-expanded','false')}},{rootMargin:`-${hdr.offsetHeight+1}px 0px 0px 0px`});io.observe($('sent'))};watch();addEventListener('resize',watch)}
+$('fbtn').addEventListener('click',()=>{const o=tools.classList.toggle('open');$('fbtn').setAttribute('aria-expanded',o)});
+// 条件を変えたら、一覧の先頭が見える位置まで戻す（スクロール中に絞り込んだとき）
+const toTop=()=>{if(tools.classList.contains('stuck')){const y=$('sent').getBoundingClientRect().top+scrollY-hdr.offsetHeight;scrollTo({top:y})}};
+['q','exp','rr','kind','sort'].forEach(id=>$(id).addEventListener('input',()=>{render(true);toTop()}));
 $('more').addEventListener('click',()=>{shown+=PAGE;render(false)});
 const setView=v=>{view=v;try{localStorage.setItem('mycard_view',v)}catch(e){}render(false)};
 $('vList').addEventListener('click',()=>setView('list'));$('vGrid').addEventListener('click',()=>setView('grid'));
