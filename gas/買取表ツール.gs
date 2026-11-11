@@ -6,6 +6,7 @@ function onOpen() {
     .addItem('POSから買取価格を取り込む', 'importPosNow')
     .addItem('POS定時取込をオン（1時間ごと）', 'enablePosSchedule')
     .addItem('POS定時取込をオフ', 'disablePosSchedule')
+    .addItem('在庫による自動掲載の設定', 'setStockRule')
     .addSeparator()
     .addItem('買取表を更新（Web・印刷用PDF）', 'runUpdate')
     .addItem('買取表を更新してXにも投稿', 'runUpdateAndPost')
