@@ -35,7 +35,7 @@ function importPosNow() { importPos_(true, true); }
 /* 定時トリガーから実行（新しいCSVがあるときだけ） */
 function importPosScheduled() { importPos_(false, false); }
 
-function importPos_(force, interactive) {
+function importPos_(force, interactive, noPublish) {
   const props = PropertiesService.getDocumentProperties();
   const f = latestCsv_('item'), fs = latestCsv_('stock');
   const say = m => { if (interactive) SpreadsheetApp.getUi().alert(m); else console.log(m); };
@@ -140,7 +140,7 @@ function importPos_(force, interactive) {
   // POSで埋まらなかった未入力の価格をカードラッシュで補完
   const crFilled = fillFromCardrush_(interactive) + applyPriceRules_(interactive);
   // 定時実行で価格が変わったら、Web・PDFを自動で作り直す
-  if (!interactive && (changes.length || showChg.length || crFilled) && props.getProperty('POS_AUTO_PUBLISH') === '1') dispatchQuiet_(false);
+  if (!interactive && !noPublish && (changes.length || showChg.length || crFilled) && props.getProperty('POS_AUTO_PUBLISH') === '1') dispatchQuiet_(false);
 }
 
 /* 定時取込のオン・オフ */

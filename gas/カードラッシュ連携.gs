@@ -52,7 +52,11 @@ function fillFromCardrushNow() { fillFromCardrush_(true); applyPriceRules_(true)
 function fillFromCardrush_(interactive) {
   const say = m => { if (interactive) SpreadsheetApp.getUi().alert(m); else console.log(m); };
   let data;
-  try { data = crFetchAll_(); } catch (e) { say(String(e.message || e)); return 0; }
+  const props = PropertiesService.getDocumentProperties();
+  try { data = crFetchAll_(); } catch (e) {
+    props.setProperty('CR_LAST', '取得できず：' + (e.message || e)); say(String(e.message || e)); return 0;
+  }
+  props.setProperty('CR_LAST', data.rows.length + ' 件取得' + (data.updatedAt ? '（カードラッシュ側の更新：' + data.updatedAt + '）' : ''));
   const idx = crIndex_(data.rows);
   const ss = SpreadsheetApp.getActive();
 
