@@ -7,8 +7,8 @@ FONT=os.path.join(HERE,'fonts')
 def _f(name,fallback): p=os.path.join(FONT,name); return p if os.path.exists(p) else fallback
 LB=_f('Lato-Black.ttf','/usr/share/fonts/truetype/lato/Lato-Black.ttf')
 LBO=_f('Lato-Bold.ttf','/usr/share/fonts/truetype/lato/Lato-Bold.ttf')
-FB=_f('NotoSansCJK-Bold.ttc','/usr/share/fonts/opentype/noto/NotoSansCJK-Bold.ttc')
-FR=_f('NotoSansCJK-Regular.ttc','/usr/share/fonts/opentype/noto/NotoSansCJK-Regular.ttc')
+FB=_f('NotoSansCJKjp-Bold.otf',_f('NotoSansCJK-Bold.ttc','/usr/share/fonts/opentype/noto/NotoSansCJK-Bold.ttc'))
+FR=_f('NotoSansCJKjp-Regular.otf',_f('NotoSansCJK-Regular.ttc','/usr/share/fonts/opentype/noto/NotoSansCJK-Regular.ttc'))
 RED=(196,15,36); DRED=(113,21,26); BLK=(35,25,22); GRY=(89,87,87); BG=(238,236,234); LINE=(214,210,208); WHT=(255,255,255)
 LOGO=os.path.join(HERE,'logo_h.png')   # 支給ロゴ（無加工・縦横比維持で縮小のみ）
 NOTE='※買取価格はカードの状態により変動します。'
