@@ -25,7 +25,7 @@ header{background:var(--panel);border-bottom:6px solid var(--red);position:stick
 .ttl h1{margin:0;font-size:clamp(14px,2.6vw,26px);font-weight:900;letter-spacing:.02em;white-space:nowrap}
 .ttl time{font-size:12px;color:var(--red);font-weight:700}
 main{padding-block:18px 40px}
-.tools{display:grid;grid-template-columns:minmax(0,2fr) repeat(3,minmax(0,1fr)) auto;gap:10px;align-items:center;margin-bottom:12px}
+.tools{display:grid;grid-template-columns:minmax(0,2fr) repeat(4,minmax(0,1fr)) auto;gap:10px;align-items:center;margin-bottom:12px}
 .tools input,.tools select{font:inherit;font-size:15px;padding:9px 12px;border:1px solid var(--line);border-radius:8px;background:var(--panel);color:var(--ink);width:100%;min-width:0}
 .tools input:focus,.tools select:focus,.view button:focus-visible,.more:focus-visible{outline:2px solid var(--red);outline-offset:1px}
 .view{display:flex;border:1px solid var(--line);border-radius:8px;overflow:hidden;background:var(--panel)}
@@ -80,8 +80,9 @@ footer{background:var(--ink);color:#fff;text-align:center;font-size:13px;padding
 <main class="wrap">
 <div class="tools">
  <input id="q" type="search" placeholder="カード名で探す（例：ピカチュウ）" aria-label="カード名で検索">
- <select id="exp" aria-label="エキスパンション"><option value="">エキスパンション：すべて</option></select>
- <select id="rr" aria-label="レアリティ"><option value="">レアリティ：すべて</option></select>
+ <select id="exp" aria-label="エキスパンション"><option value="">全エキスパンション</option></select>
+ <select id="rr" aria-label="レアリティ"><option value="">全レアリティ</option></select>
+ <select id="kind" aria-label="カードの種類"><option value="">全種類</option></select>
  <select id="sort" aria-label="並び順"><option value="high">買取価格の高い順</option><option value="low">買取価格の安い順</option><option value="no">エキスパンション・番号順</option></select>
  <div class="view" role="group" aria-label="表示切替"><button id="vList" type="button">リスト</button><button id="vGrid" type="button">画像</button></div>
 </div>
@@ -107,14 +108,16 @@ const cnt=k=>{const o={};CARDS.forEach(c=>{if(c[k])o[c[k]]=(o[c[k]]||0)+1});retu
 const ec=cnt('exp');Object.keys(ec).sort((a,b)=>ec[b]-ec[a]).forEach(v=>$('exp').add(new Option(v+'（'+ec[v]+'）',v)));
 const RO=['MUR','SAR','UR','SR','MA','AR','BWR','TR','RR','R','U','C'];const rc=cnt('rr');
 Object.keys(rc).sort((a,b)=>(RO.indexOf(a)+99)%99-(RO.indexOf(b)+99)%99).forEach(v=>$('rr').add(new Option(v+'（'+rc[v]+'）',v)));
+const KO=['ポケモン','グッズ','ポケモンのどうぐ','サポート','スタジアム','エネルギー'];const kc=cnt('kind');
+KO.filter(v=>kc[v]).forEach(v=>$('kind').add(new Option(v+'（'+kc[v]+'）',v)));if(!Object.keys(kc).length)$('kind').hidden=true;
 const tags=c=>(c.exp?`<span class="tag">${esc(c.exp)}</span>`:'')+(c.rr?`<span class="tag r">${esc(c.rr)}</span>`:'');
 const card=(c,i)=>`<article class="card"><div class="im"><img loading="lazy" src="${esc(sized(c.img,400))}" alt="${esc(c.name)}"></div>
 <div class="meta">${tags(c)}<span class="num">${esc(c.num)}</span></div><div class="nm">${esc(c.name)}</div><div class="pr yen">${yen(c.price)}</div></article>`;
 const row=(c,i)=>`<div class="li${c.feat?' f':''}"><img loading="lazy" src="${esc(sized(c.img,100))}" alt="">
 <div class="tg">${tags(c)}</div><div class="nm"><button type="button" data-i="${i}">${esc(c.name)}</button><span class="num">${esc(c.num)}</span></div><div class="pr yen">${yen(c.price)}</div></div>`;
 function filtered(){
- const q=$('q').value.trim(),e=$('exp').value,r=$('rr').value,s=$('sort').value;
- let A=CARDS.filter(c=>(!q||c.name.includes(q))&&(!e||c.exp===e)&&(!r||c.rr===r));
+ const q=$('q').value.trim(),e=$('exp').value,r=$('rr').value,k=$('kind').value,s=$('sort').value;
+ let A=CARDS.filter(c=>(!q||c.name.includes(q))&&(!e||c.exp===e)&&(!r||c.rr===r)&&(!k||c.kind===k));
  if(s==='high')A.sort((a,b)=>(b.price||0)-(a.price||0));
  else if(s==='low')A.sort((a,b)=>(a.price||0)-(b.price||0));
  else A.sort((a,b)=>a.exp.localeCompare(b.exp)||a.num.localeCompare(b.num,'ja',{numeric:true}));
@@ -122,7 +125,7 @@ function filtered(){
 }
 function render(reset){
  if(reset){shown=PAGE;L=filtered()}
- const plain=!$('q').value.trim()&&!$('exp').value&&!$('rr').value;
+ const plain=!$('q').value.trim()&&!$('exp').value&&!$('rr').value&&!$('kind').value;
  const F=plain?CARDS.filter(c=>c.feat).sort((a,b)=>b.price-a.price):[];
  $('featS').hidden=!F.length;$('feat').innerHTML=F.map(card).join('');
  const part=L.slice(0,shown);
@@ -132,7 +135,7 @@ function render(reset){
  $('more').hidden=shown>=L.length;$('empty').hidden=L.length>0;$('count').textContent=L.length.toLocaleString('ja-JP');
  $('vList').setAttribute('aria-pressed',view==='list');$('vGrid').setAttribute('aria-pressed',view==='grid');
 }
-['q','exp','rr','sort'].forEach(id=>$(id).addEventListener('input',()=>render(true)));
+['q','exp','rr','kind','sort'].forEach(id=>$(id).addEventListener('input',()=>render(true)));
 $('more').addEventListener('click',()=>{shown+=PAGE;render(false)});
 const setView=v=>{view=v;try{localStorage.setItem('mycard_view',v)}catch(e){}render(false)};
 $('vList').addEventListener('click',()=>setView('list'));$('vGrid').addEventListener('click',()=>setView('grid'));
@@ -152,6 +155,6 @@ render(true);
 
 
 def build(cards, updated, logo_src):
-    data = json.dumps([{k: c.get(k, '') for k in ('exp', 'num', 'name', 'rr', 'price', 'feat', 'img')} for c in cards],
+    data = json.dumps([{k: c.get(k, '') for k in ('exp', 'num', 'name', 'rr', 'kind', 'price', 'feat', 'img')} for c in cards],
                       ensure_ascii=False, separators=(',', ':'))
     return TEMPLATE.replace('__DATA__', data.replace('</', '<\\/')).replace('__UPDATED__', html.escape(updated)).replace('__LOGO__', logo_src)

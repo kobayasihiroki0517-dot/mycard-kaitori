@@ -105,7 +105,9 @@ def read_all_cards(sheet_url, prices):
         price = p['price'] if p else (to_int(g(r, '▼POS買取価格')) or to_int(g(r, '▼CR買取価格')))
         if not price:
             continue
-        out.append(dict(exp=exp, num=g(r, '番号表記') or num, name=g(r, 'カード名'), rr=g(r, 'レアリティ'),
+        k = g(r, '種類')
+        kind = 'ポケモン' if k in ('ワザ', '特性') else 'エネルギー' if 'エネルギー' in k else k
+        out.append(dict(exp=exp, num=g(r, '番号表記') or num, name=g(r, 'カード名'), rr=g(r, 'レアリティ'), kind=kind,
                         price=price, feat=bool(p and p['feat']), url=g(r, '画像URL（ドライブ）')))
     return out
 
