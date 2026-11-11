@@ -57,8 +57,11 @@ def read_sheet(url):
                  + '\n読み込んだ1行目: ' + ' / '.join(head[:8])
                  + '\n→「ウェブに公開」で「買取表」シートと「カンマ区切り形式（.csv）」を選んでいるか確認してください')
     g = lambda r, k: (r[idx[k]].strip() if k in idx and idx[k] < len(r) else '')
-    cards, skipped = [], []
+    cards, skipped, prices = [], [], {}
     for n, r in enumerate(rows[1:], start=2):
+        if g(r, 'exp') and to_int(g(r, 'price')) is not None:
+            key = '|'.join([g(r, 'exp'), g(r, 'num').zfill(3) if g(r, 'num').isdigit() else g(r, 'num'), g(r, 'name'), g(r, 'reg')])
+            prices[key] = dict(price=to_int(g(r, 'price')), feat=g(r, 'feat') in ('○', '◯', 'o', 'O') and g(r, 'show') in ('○', '◯', 'o', 'O'))
         if not g(r, 'exp') or g(r, 'show') not in ('○', '◯', 'o', 'O'):
             continue
         if not g(r, 'img').startswith(('http', 'file:')):
@@ -70,7 +73,41 @@ def read_sheet(url):
                           order=to_int(g(r, 'order')), url=g(r, 'img'), row=n))
     # 表示順（小さい順）→ 未入力は後ろで買取価格の高い順
     cards.sort(key=lambda c: (c['order'] is None, c['order'] or 0, -(c['price'] or 0)))
-    return cards, skipped
+    return cards, skipped, prices
+
+
+CARDS_GID = '1723803105'   # 「カード一覧」シート
+
+
+def read_all_cards(sheet_url, prices):
+    """Webページ用：カード一覧の全カード。価格は 買取表 → POS買取価格 → カードラッシュ の順で採用"""
+    url = os.environ.get('SHEET_CARDS_CSV_URL') or re.sub(r'gid=\d+', 'gid=' + CARDS_GID, sheet_url)
+    try:
+        text = fetch(url).decode('utf-8-sig')
+    except Exception as e:
+        print('カード一覧を読み込めませんでした（掲載カードのみWebに載せます）:', e)
+        return None
+    rows = list(csv.reader(io.StringIO(text)))
+    head = [h.strip() for h in rows[0]]
+    need = ['【】エキスパンション', '()番号', 'カード名', '[]レギュレーション', 'レアリティ', '画像URL（ドライブ）']
+    if any(h not in head for h in need):
+        print('カード一覧の見出しが読めませんでした（「ウェブに公開」に「カード一覧」シートを追加してください）。掲載カードのみWebに載せます')
+        return None
+    ix = {h: i for i, h in enumerate(head)}
+    g = lambda r, h: (r[ix[h]].strip() if h in ix and ix[h] < len(r) else '')
+    out = []
+    for r in rows[1:]:
+        exp, num = g(r, '【】エキスパンション'), g(r, '()番号')
+        if not exp or not g(r, '画像URL（ドライブ）').startswith('http'):
+            continue
+        key = '|'.join([exp, num, g(r, 'カード名'), g(r, '[]レギュレーション')])
+        p = prices.get(key)
+        price = p['price'] if p else (to_int(g(r, '▼POS買取価格')) or to_int(g(r, '▼CR買取価格')))
+        if not price:
+            continue
+        out.append(dict(exp=exp, num=g(r, '番号表記') or num, name=g(r, 'カード名'), rr=g(r, 'レアリティ'),
+                        price=price, feat=bool(p and p['feat']), url=g(r, '画像URL（ドライブ）')))
+    return out
 
 
 def download_images(cards):
@@ -94,7 +131,7 @@ def main():
     url = os.environ.get('SHEET_CSV_URL')
     if not url:
         sys.exit('SHEET_CSV_URL が設定されていません')
-    cards, skipped = read_sheet(url)
+    cards, skipped, prices = read_sheet(url)
     if not cards:
         sys.exit('掲載「○」のカードがありません')
     print(f'掲載カード {len(cards)} 枚（目玉 {sum(c["feat"] for c in cards)} 枚）')
@@ -112,7 +149,9 @@ def main():
         im.save(os.path.join(SITE, f'x_{i}.png'), optimize=True)
     save_pdf(a4_pages(cards, up), os.path.join(SITE, 'kaitori.pdf'))
 
-    web_cards = [dict(c, img=c['url'] + ('=w600' if 'googleusercontent' in c['url'] else '')) for c in cards]
+    all_cards = read_all_cards(url, prices) or cards
+    print(f'Webページ掲載 {len(all_cards)} 枚')
+    web_cards = [dict(c, img=c['url']) for c in all_cards]
     with open(os.path.join(SITE, 'index.html'), 'w', encoding='utf-8') as f:
         f.write(build_web(web_cards, up, 'logo_h.png'))
     shutil.copy(os.path.join(HERE, 'logo_h.png'), SITE)
