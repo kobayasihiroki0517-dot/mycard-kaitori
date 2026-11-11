@@ -30,7 +30,7 @@ jobs:
     steps:
       - uses: actions/checkout@v4
       - name: 日本語フォントを用意
-        run: sudo apt-get update -qq && sudo apt-get install -y -qq fonts-noto-cjk fonts-lato >/dev/null
+        run: for i in 1 2 3 4 5; do sudo apt-get update -qq && sudo apt-get install -y -qq --fix-missing fonts-noto-cjk fonts-lato >/dev/null && break; echo "フォントの取得に失敗（${i}回目）。30秒後に再試行します"; sleep 30; done; fc-list | grep -qi 'Noto Sans CJK'
       - uses: actions/setup-python@v5
         with:
           python-version: '3.12'
