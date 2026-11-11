@@ -37,14 +37,24 @@ function importPosScheduled() { importPos_(false, false); }
 
 function importPos_(force, interactive) {
   const props = PropertiesService.getDocumentProperties();
-  const f = latestCsv_();
+  const f = latestCsv_('item'), fs = latestCsv_('stock');
   const say = m => { if (interactive) SpreadsheetApp.getUi().alert(m); else console.log(m); };
-  if (!f) { say('ドライブの「' + POS_FOLDER + '」フォルダにCSVがありません。\nPOSからダウンロードしたCSVを入れてください。'); return; }
-  const stamp = f.getId() + '@' + f.getLastUpdated().getTime();
+  if (!f) { say('ドライブの「' + POS_FOLDER + '」フォルダに商品マスタのCSV（item_〜.csv）がありません。\nPOSの「商品マスタ」→「ダウンロード」で出したCSVを入れてください。'); return; }
+  const stamp = [f, fs].filter(Boolean).map(x => x.getId() + '@' + x.getLastUpdated().getTime()).join(',');
   if (!force && props.getProperty('POS_LAST') === stamp) return;   // 新しいCSVなし
 
-  let text = f.getBlob().getDataAsString('UTF-8').replace(/^﻿/, '');
-  const rows = Utilities.parseCsv(text); text = null;
+  // 在庫一覧CSV → 商品マスタIDごとの在庫数・独自買取価格
+  const stock = {}, ownBuy = {};
+  if (fs) {
+    const sr = readCsv_(fs), sh = sr[0];
+    const sId = sh.indexOf('商品マスタID'), sQ = sh.indexOf('在庫数'), sOwn = sh.indexOf('買取価格（独自）');
+    for (let i = 1; i < sr.length; i++) {
+      const id = sr[i][sId]; if (!id) continue;
+      stock[id] = (stock[id] || 0) + (Number(sr[i][sQ]) || 0);
+      if (sOwn >= 0 && sr[i][sOwn] !== '') ownBuy[id] = Number(sr[i][sOwn]);
+    }
+  }
+  const rows = readCsv_(f);
   const h = rows[0], col = n => h.indexOf(n);
   const cE = col('エキスパンション'), cN = col('カード番号'), cName = col('商品名'), cR = col('レアリティ'),
         cB = col('買取価格'), cS = col('販売店舗価格'), cId = col('商品マスタID');
