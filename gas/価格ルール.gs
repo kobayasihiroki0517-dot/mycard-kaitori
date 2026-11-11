@@ -35,7 +35,9 @@ function readRules_() {
   });
   const ratio = v.filter(r => r[6] !== '' && r[7] !== '').map(r => ({ min: Number(r[6]), pct: Number(String(r[7]).replace(/[^\d.]/g, '')) }))
                  .sort((a, b) => a.min - b.min);
-  return { guarantee: guarantee, ratio: ratio };
+  // J3：割合込みの価格がこの金額以下なら「買取保証」に切り替える（空欄なら切り替えない）
+  const low = String(sh.getRange('J3').getDisplayValue()).replace(/[^\d]/g, '');
+  return { guarantee: guarantee, ratio: ratio, lowLimit: low === '' ? null : Number(low) };
 }
 function ratioFor_(rules, stock) {
   let pct = 100;
@@ -57,8 +59,10 @@ function priceFor_(rules, pos, cr, stock, rr, reg, kind) {
   pos = Number(pos) || 0; cr = Number(cr) || 0;
   if (cr > 0) {
     const base = pos > 0 ? Math.min(pos, cr) : cr;
-    let p = Math.floor(base * ratioFor_(rules, Number(stock) || 0) / 100 / 10) * 10;
-    if (p <= 0 && base >= 10) p = 10;
+    const p = Math.floor(base * ratioFor_(rules, Number(stock) || 0) / 100 / 10) * 10;
+    // 割合込みで安くなりすぎたカードは買取保証に格下げ
+    if (rules.lowLimit !== null && rules.lowLimit !== undefined && p <= rules.lowLimit)
+      return [guaranteeFor_(rules, rr, reg, kind), '買取保証'];
     return [p, '通常'];
   }
   return [guaranteeFor_(rules, rr, reg, kind), '買取保証'];
