@@ -79,6 +79,18 @@ h2{font-size:19px;color:var(--red);margin:4px 0 12px;font-weight:900}
 #modal{position:fixed;inset:0;z-index:30;background:rgba(20,15,14,.78);display:grid;place-items:center;padding:24px}
 #modal img{max-width:min(420px,90vw);max-height:80vh;border-radius:10px}
 #modal p{color:#fff;text-align:center;font-weight:900;margin:10px 0 0}
+.gb{display:inline-flex;align-items:center;gap:4px;font:inherit;font-family:var(--jp);font-weight:900;font-size:12px;line-height:1;letter-spacing:.04em;padding:5px 8px;border-radius:999px;border:0;background:var(--ink);color:#fff;cursor:help;vertical-align:middle;text-shadow:none}
+.gb::after{content:'?';display:inline-grid;place-items:center;width:14px;height:14px;border-radius:50%;background:#fff;color:var(--ink);font-size:10px}
+.gp{display:flex;flex-direction:column;align-items:flex-end;gap:4px}
+.card .gp{align-items:center}.card .pr .gb{background:#fff;color:var(--red)}.card .pr .gb::after{background:var(--red);color:#fff}
+#gpop{position:fixed;z-index:25;width:min(340px,calc(100vw - 32px));background:var(--panel);color:var(--ink);border:2px solid var(--red);border-radius:12px;box-shadow:0 12px 32px rgba(0,0,0,.3);padding:14px 16px;font-size:14px}
+#gpop h3{margin:0 0 6px;color:var(--red);font-size:17px}
+#gpop p{margin:0 0 10px;line-height:1.6}
+#gpop table{width:100%;border-collapse:collapse}
+#gpop th,#gpop td{padding:6px 4px;border-bottom:1px solid var(--line);text-align:left;font-size:13px}
+#gpop th{color:var(--sub);font-weight:700;font-size:11px}
+#gpop td.a{text-align:right;font-family:var(--num,inherit);font-weight:900;color:var(--red);font-size:16px;white-space:nowrap}
+#gpop .x{position:absolute;top:6px;right:8px;border:0;background:none;font-size:20px;color:var(--sub);cursor:pointer}
 .more{display:block;margin:18px auto 0;font:inherit;font-weight:700;padding:10px 28px;border-radius:8px;border:1px solid var(--line);background:var(--panel);color:var(--ink);cursor:pointer}
 .empty{padding:40px 0;text-align:center;color:var(--sub)}
 footer{background:var(--ink);color:#fff;text-align:center;font-size:13px;padding-block:14px}
@@ -105,12 +117,15 @@ footer{background:var(--ink);color:#fff;text-align:center;font-size:13px;padding
 </main>
 <footer class="wrap">※買取価格はカードの状態により変動します。</footer>
 <div id="pop" hidden><img alt=""></div>
+<div id="gpop" hidden role="dialog" aria-label="買取保証について"><button class="x" type="button" aria-label="閉じる">×</button><div id="gbody"></div></div>
 <div id="modal" hidden><div><img alt=""><p></p></div></div>
 <script>
 const CARDS=__DATA__;
+const RULES=__RULES__;
 const $=id=>document.getElementById(id);
 const esc=s=>String(s??'').replace(/[&<>"]/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c]));
 const yen=p=>p===''||p==null?'―':'<small>¥</small>'+Number(p).toLocaleString('ja-JP');
+const pv=c=>c.g?`<span class="gp"><button type="button" class="gb">買取保証</button>${c.price!==''&&c.price!=null?`<span>${yen(c.price)}</span>`:''}</span>`:yen(c.price);
 const sized=(u,w)=>/googleusercontent/.test(u)?u+'=w'+w:u;
 const PAGE=120; let shown=PAGE, view='list', L=[];
 try{view=localStorage.getItem('mycard_view')||'list'}catch(e){}
@@ -123,10 +138,10 @@ const KO=['ポケモン','グッズ','ポケモンのどうぐ','サポート','
 KO.filter(v=>kc[v]).forEach(v=>$('kind').add(new Option(v+'（'+kc[v]+'）',v)));if(!Object.keys(kc).length)$('kind').hidden=true;
 const tags=c=>(c.exp?`<span class="tag">${esc(c.exp)}</span>`:'')+(c.rr?`<span class="tag r">${esc(c.rr)}</span>`:'');
 const card=(c,i)=>`<article class="card"><div class="im"><img loading="lazy" src="${esc(sized(c.img,400))}" alt="${esc(c.name)}"></div>
-<div class="meta">${tags(c)}<span class="num">${esc(c.num)}</span></div><div class="nm">${esc(c.name)}</div><div class="pr yen">${yen(c.price)}</div></article>`;
+<div class="meta">${tags(c)}<span class="num">${esc(c.num)}</span></div><div class="nm">${esc(c.name)}</div><div class="pr yen">${pv(c)}</div></article>`;
 const row=(c,i)=>`<div class="li${c.feat?' f':''}"><button type="button" class="th" data-i="${i}" aria-label="${esc(c.name)}の画像を拡大"><img loading="lazy" src="${esc(sized(c.img,100))}" alt=""></button>
 <div class="c-exp">${c.exp?`<span class="tag">${esc(c.exp)}</span>`:''}</div><div class="c-num">${esc(c.num)}</div><div class="c-rr">${c.rr?`<span class="tag r">${esc(c.rr)}</span>`:''}</div>
-<div class="nm"><span class="cn">${esc(c.name)}</span><span class="sub">${tags(c)}<span class="num">${esc(c.num)}</span></span></div><div class="c-kind">${esc(c.kind||'')}</div><div class="pr yen">${yen(c.price)}</div></div>`;
+<div class="nm"><span class="cn">${esc(c.name)}</span><span class="sub">${tags(c)}<span class="num">${esc(c.num)}</span></span></div><div class="c-kind">${esc(c.kind||'')}</div><div class="pr yen">${pv(c)}</div></div>`;
 const HEAD='<div class="li hd" aria-hidden="true"><span>画像</span><span>エキスパンション</span><span>型番</span><span>レアリティ</span><span>カード名</span><span class="c-kind">種類</span><span class="pr">買取価格</span></div>';
 function filtered(){
  const q=$('q').value.trim(),e=$('exp').value,r=$('rr').value,k=$('kind').value,s=$('sort').value;
@@ -160,14 +175,24 @@ $('out').addEventListener('mouseover',e=>{const b=e.target.closest('.li .th');if
 $('out').addEventListener('mousemove',e=>{if(pop.hidden)return;const w=260,h=370,x=e.clientX+24+w>innerWidth?e.clientX-w-24:e.clientX+24;pop.style.left=x+'px';pop.style.top=Math.max(8,Math.min(e.clientY-h/2,innerHeight-h-8))+'px'});
 $('out').addEventListener('mouseout',e=>{if(e.target.closest('.li .th'))pop.hidden=true});
 $('out').addEventListener('click',e=>{const b=e.target.closest('.li .th');if(!b)return;const c=L[b.dataset.i];pop.hidden=true;
- $('modal').querySelector('img').src=sized(c.img,800);$('modal').querySelector('p').textContent=c.name+'　¥'+Number(c.price).toLocaleString('ja-JP');$('modal').hidden=false});
+ $('modal').querySelector('img').src=sized(c.img,800);$('modal').querySelector('p').textContent=c.name+'　'+(c.g?'買取保証'+(c.price?' ¥'+Number(c.price).toLocaleString('ja-JP'):''):'¥'+Number(c.price).toLocaleString('ja-JP'));$('modal').hidden=false});
 $('modal').addEventListener('click',()=>{$('modal').hidden=true});
-addEventListener('keydown',e=>{if(e.key==='Escape')$('modal').hidden=true});
+addEventListener('keydown',e=>{if(e.key==='Escape'){$('modal').hidden=true;gpop.hidden=true;gpin=false}});
+// 「買取保証」：カーソルを合わせる（スマホはタップ）と保証内容を表示
+$('gbody').innerHTML=`<h3>買取保証</h3><p>${esc(RULES.desc)}</p><table><thead><tr><th>レアリティ</th><th>対象</th><th style="text-align:right">保証額</th></tr></thead><tbody>${RULES.rows.map(r=>`<tr><td><span class="tag r">${esc(r.rr)}</span></td><td>${r.reg?'レギュレーション '+esc(r.reg):'すべて'}${r.ex?'<br><small>※'+esc(r.ex)+'を除く</small>':''}</td><td class="a"><small>¥</small>${Number(r.amount).toLocaleString('ja-JP')}</td></tr>`).join('')}</tbody></table>`;
+const gpop=$('gpop');let gpin=false;
+const placeG=b=>{const r=b.getBoundingClientRect(),w=gpop.offsetWidth,h=gpop.offsetHeight;gpop.style.left=Math.max(16,Math.min(r.right-w+20,innerWidth-w-16))+'px';gpop.style.top=(r.bottom+h+12>innerHeight?Math.max(8,r.top-h-8):r.bottom+8)+'px'};
+document.addEventListener('mouseover',e=>{if(!hoverable||gpin)return;const b=e.target.closest('.gb');if(b){gpop.hidden=false;placeG(b)}else if(!e.target.closest('#gpop'))gpop.hidden=true});
+document.addEventListener('click',e=>{const b=e.target.closest('.gb');if(b){e.stopPropagation();gpin=true;gpop.hidden=false;placeG(b);return}
+ if(e.target.closest('.x')||!e.target.closest('#gpop')){gpin=false;gpop.hidden=true}},true);
+addEventListener('scroll',()=>{if(!gpin)gpop.hidden=true},{passive:true});
 render(true);
 </script></body></html>'''
 
 
-def build(cards, updated, logo_src):
-    data = json.dumps([{k: c.get(k, '') for k in ('exp', 'num', 'name', 'rr', 'kind', 'price', 'feat', 'img')} for c in cards],
+def build(cards, updated, logo_src, rules=None):
+    rules = rules or dict(desc='', rows=[])
+    data = json.dumps([{k: c.get(k, '') for k in ('exp', 'num', 'name', 'rr', 'kind', 'price', 'feat', 'img', 'g')} for c in cards],
                       ensure_ascii=False, separators=(',', ':'))
-    return TEMPLATE.replace('__DATA__', data.replace('</', '<\\/')).replace('__UPDATED__', html.escape(updated)).replace('__LOGO__', logo_src)
+    return TEMPLATE.replace('__DATA__', data.replace('</', '<\\/')).replace('__UPDATED__', html.escape(updated)).replace('__LOGO__', logo_src).replace(
+        '__RULES__', json.dumps(rules, ensure_ascii=False).replace('</', '<\\/'))

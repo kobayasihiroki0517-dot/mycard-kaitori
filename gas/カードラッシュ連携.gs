@@ -47,7 +47,7 @@ function crPick_(idx, exp, num, name) {
 }
 
 /* メニューから実行 */
-function fillFromCardrushNow() { fillFromCardrush_(true); }
+function fillFromCardrushNow() { fillFromCardrush_(true); applyPriceRules_(true); }
 
 function fillFromCardrush_(interactive) {
   const say = m => { if (interactive) SpreadsheetApp.getUi().alert(m); else console.log(m); };

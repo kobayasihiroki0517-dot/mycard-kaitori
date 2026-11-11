@@ -138,7 +138,7 @@ function importPos_(force, interactive) {
     (showChg.length ? '\n掲載の自動変更：' + showChg.length + ' 件\n' + showChg.slice(0, 10).join('\n') : '');
   say(msg);
   // POSで埋まらなかった未入力の価格をカードラッシュで補完
-  const crFilled = fillFromCardrush_(interactive);
+  const crFilled = fillFromCardrush_(interactive) + applyPriceRules_(interactive);
   // 定時実行で価格が変わったら、Web・PDFを自動で作り直す
   if (!interactive && (changes.length || showChg.length || crFilled) && props.getProperty('POS_AUTO_PUBLISH') === '1') dispatchQuiet_(false);
 }

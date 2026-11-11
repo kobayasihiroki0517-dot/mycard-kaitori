@@ -19,7 +19,7 @@ WEEK = '月火水木金土日'
 # 買取表シートの見出し名（列の位置が変わっても見出し名で読む）
 COL = dict(exp='【】エキスパンション', num='()番号', name='カード名', reg='[]レギュレーション',
            price='買取価格', show='掲載', feat='目玉', order='表示順', rr='▼レアリティ（自動）',
-           check='▼照合（自動）', img='▼画像URL（自動）', fullnum='▼番号表記（自動）')
+           check='▼照合（自動）', img='▼画像URL（自動）', fullnum='▼番号表記（自動）', src='▼価格の出所')
 
 
 def fetch(url, tries=4):
@@ -61,7 +61,8 @@ def read_sheet(url):
     for n, r in enumerate(rows[1:], start=2):
         if g(r, 'exp') and to_int(g(r, 'price')) is not None:
             key = '|'.join([g(r, 'exp'), g(r, 'num').zfill(3) if g(r, 'num').isdigit() else g(r, 'num'), g(r, 'name'), g(r, 'reg')])
-            prices[key] = dict(price=to_int(g(r, 'price')), feat=g(r, 'feat') in ('○', '◯', 'o', 'O') and g(r, 'show') in ('○', '◯', 'o', 'O'))
+            prices[key] = dict(price=to_int(g(r, 'price')), guar=g(r, 'src') == '買取保証',
+                               feat=g(r, 'feat') in ('○', '◯', 'o', 'O') and g(r, 'show') in ('○', '◯', 'o', 'O'))
         if not g(r, 'exp') or g(r, 'show') not in ('○', '◯', 'o', 'O'):
             continue
         if not g(r, 'img').startswith(('http', 'file:')):
@@ -102,14 +103,45 @@ def read_all_cards(sheet_url, prices):
             continue
         key = '|'.join([exp, num, g(r, 'カード名'), g(r, '[]レギュレーション')])
         p = prices.get(key)
-        price = p['price'] if p else (to_int(g(r, '▼POS買取価格')) or to_int(g(r, '▼CR買取価格')))
-        if not price:
+        cls = g(r, '▼価格区分')
+        if p and not p['guar']:            # 買取表で価格を決めているカード
+            price, guar = p['price'], False
+        elif cls:                           # 価格ルールの結果（▼表示価格・▼価格区分）
+            price, guar = to_int(g(r, '▼表示価格')), cls == '買取保証'
+            if p and p['guar']:
+                price = p['price']
+        else:                               # ルール未適用の古いシート
+            price, guar = (to_int(g(r, '▼POS買取価格')) or to_int(g(r, '▼CR買取価格'))), False
+        if not price and not guar:
             continue
         k = g(r, '種類')
         kind = 'ポケモン' if k in ('ワザ', '特性') else 'エネルギー' if 'エネルギー' in k else k
         out.append(dict(exp=exp, num=g(r, '番号表記') or num, name=g(r, 'カード名'), rr=g(r, 'レアリティ'), kind=kind,
-                        price=price, feat=bool(p and p['feat']), url=g(r, '画像URL（ドライブ）')))
+                        price=price or '', g=1 if guar else 0, feat=bool(p and p['feat']), url=g(r, '画像URL（ドライブ）')))
     return out
+
+
+RULES_GID = '224697346'   # 「価格ルール」シート
+DEFAULT_RULES = dict(desc='カードラッシュに買取価格の掲載がないカードは、以下の金額で買取を保証します。', rows=[
+    dict(rr='UR', reg='I,J', ex='', amount=200), dict(rr='SAR', reg='I,J', ex='', amount=200),
+    dict(rr='SR', reg='I,J', ex='グッズ', amount=200), dict(rr='CHR', reg='', ex='', amount=30),
+    dict(rr='AR', reg='', ex='', amount=30), dict(rr='RR', reg='I,J', ex='', amount=10)])
+
+
+def read_rules(sheet_url):
+    """Webの「買取保証」ポップアップ用に価格ルールシートを読む（読めなければ既定値）"""
+    url = os.environ.get('SHEET_RULES_CSV_URL') or re.sub(r'gid=\d+', 'gid=' + RULES_GID, sheet_url)
+    try:
+        rows = list(csv.reader(io.StringIO(fetch(url).decode('utf-8-sig'))))
+        if not rows or '買取保証' not in rows[0][0]:
+            raise ValueError('価格ルールシートではありません')
+        out = [dict(rr=r[0].strip(), reg=r[1].strip(), ex=r[2].strip(), amount=to_int(r[3]))
+               for r in rows[2:12] if len(r) > 3 and r[0].strip() and to_int(r[3])]
+        desc = next((r[0].strip() for r in rows[16:18] if r and r[0].strip() and not r[0].startswith('【')), DEFAULT_RULES['desc'])
+        return dict(desc=desc, rows=out or DEFAULT_RULES['rows'])
+    except Exception as e:
+        print('価格ルールシートを読み込めませんでした（既定の内容を表示します）:', e)
+        return DEFAULT_RULES
 
 
 def download_images(cards):
@@ -156,7 +188,7 @@ def main():
     print(f'Webページ掲載 {len(all_cards)} 枚')
     web_cards = [dict(c, img=c['url']) for c in all_cards]
     with open(os.path.join(SITE, 'index.html'), 'w', encoding='utf-8') as f:
-        f.write(build_web(web_cards, up, 'logo_h.png'))
+        f.write(build_web(web_cards, up, 'logo_h.png', read_rules(url)))
     shutil.copy(os.path.join(HERE, 'logo_h.png'), SITE)
     with open(os.path.join(SITE, 'cards.json'), 'w', encoding='utf-8') as f:
         json.dump(dict(updated=up, x_images=len(xs),

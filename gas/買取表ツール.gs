@@ -5,6 +5,7 @@ function onOpen() {
     .addSeparator()
     .addItem('POSから買取価格を取り込む', 'importPosNow')
     .addItem('未入力の価格をカードラッシュから取得', 'fillFromCardrushNow')
+    .addItem('価格ルールを適用（再計算）', 'applyPriceRulesNow')
     .addItem('POS定時取込をオン（1時間ごと）', 'enablePosSchedule')
     .addItem('POS定時取込をオフ', 'disablePosSchedule')
     .addItem('在庫による自動掲載の設定', 'setStockRule')
