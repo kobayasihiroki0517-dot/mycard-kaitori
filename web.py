@@ -53,8 +53,8 @@ h2{font-size:19px;color:var(--red);margin:4px 0 12px;font-weight:900}
 .list{background:var(--panel);border:1px solid var(--line);border-radius:12px;overflow:hidden}
 .li{display:grid;grid-template-columns:52px 104px 88px 80px minmax(0,1fr) 120px 140px;gap:16px;align-items:center;padding:8px 16px;border-top:1px solid var(--line)}
 .li.hd{border-top:0;background:var(--ink);color:#fff;font-size:12px;font-weight:700;padding-block:9px}
-/* 見出しと中身の位置をそろえる：画像・エキスパンション・型番・レアリティ・種類は中央、カード名は左、買取価格は右 */
-.li>:nth-child(-n+4),.li>:nth-child(6){text-align:center;justify-self:stretch}
+/* 見出しと中身の位置をそろえる：パソコンはすべての列を中央ぞろえ */
+@media (min-width:641px){.li>*{text-align:center;justify-self:stretch}#out .li .pr,.list .li.hd .pr{text-align:center}#out .li .gp{align-items:center}}
 .li .th{justify-self:center}
 .li.hd .c-kind{color:#fff;font-size:12px}
 .li:nth-child(odd):not(.hd){background:var(--row)}
