@@ -1,6 +1,6 @@
 """MyCard シングル買取表 Webページ生成（1ファイルのHTML）
 リスト表示／画像表示の切り替え、エキスパンション・レアリティでの絞り込み、
-リスト表示ではカード名にカーソルを合わせると大きな画像を表示"""
+リスト表示では左の画像にカーソルを合わせると大きな画像を表示"""
 import json, html
 
 TEMPLATE = r'''<!doctype html>
@@ -57,8 +57,10 @@ h2{font-size:19px;color:var(--red);margin:4px 0 12px;font-weight:900}
 .li img{width:44px;aspect-ratio:868/1212;object-fit:cover;border-radius:3px;background:var(--bg);display:block}
 .li .tg{display:flex;flex-direction:column;gap:3px;align-items:flex-start}
 .li .nm{min-width:0}
-.li .nm button{font:inherit;font-weight:900;font-size:15px;color:var(--ink);background:none;border:0;padding:0;text-align:left;cursor:zoom-in;line-height:1.35}
-.li .nm button:hover{color:var(--red);text-decoration:underline}
+.li .cn{display:block;font-weight:900;font-size:15px;line-height:1.35}
+.li .th{border:0;padding:0;background:none;cursor:zoom-in;display:block;border-radius:3px}
+.li .th:hover img{outline:2px solid var(--red);outline-offset:1px}
+.li .th:focus-visible{outline:2px solid var(--red);outline-offset:2px}
 .li .nm .num{margin:0;display:block}
 .li .pr{color:var(--red);font-size:22px;text-align:right;white-space:nowrap}
 .li.f{box-shadow:inset 4px 0 0 var(--red)}
@@ -113,8 +115,8 @@ KO.filter(v=>kc[v]).forEach(v=>$('kind').add(new Option(v+'（'+kc[v]+'）',v)))
 const tags=c=>(c.exp?`<span class="tag">${esc(c.exp)}</span>`:'')+(c.rr?`<span class="tag r">${esc(c.rr)}</span>`:'');
 const card=(c,i)=>`<article class="card"><div class="im"><img loading="lazy" src="${esc(sized(c.img,400))}" alt="${esc(c.name)}"></div>
 <div class="meta">${tags(c)}<span class="num">${esc(c.num)}</span></div><div class="nm">${esc(c.name)}</div><div class="pr yen">${yen(c.price)}</div></article>`;
-const row=(c,i)=>`<div class="li${c.feat?' f':''}"><img loading="lazy" src="${esc(sized(c.img,100))}" alt="">
-<div class="tg">${tags(c)}</div><div class="nm"><button type="button" data-i="${i}">${esc(c.name)}</button><span class="num">${esc(c.num)}</span></div><div class="pr yen">${yen(c.price)}</div></div>`;
+const row=(c,i)=>`<div class="li${c.feat?' f':''}"><button type="button" class="th" data-i="${i}" aria-label="${esc(c.name)}の画像を拡大"><img loading="lazy" src="${esc(sized(c.img,100))}" alt=""></button>
+<div class="tg">${tags(c)}</div><div class="nm"><span class="cn">${esc(c.name)}</span><span class="num">${esc(c.num)}</span></div><div class="pr yen">${yen(c.price)}</div></div>`;
 function filtered(){
  const q=$('q').value.trim(),e=$('exp').value,r=$('rr').value,k=$('kind').value,s=$('sort').value;
  let A=CARDS.filter(c=>(!q||c.name.includes(q))&&(!e||c.exp===e)&&(!r||c.rr===r)&&(!k||c.kind===k));
@@ -141,12 +143,12 @@ const setView=v=>{view=v;try{localStorage.setItem('mycard_view',v)}catch(e){}ren
 $('vList').addEventListener('click',()=>setView('list'));$('vGrid').addEventListener('click',()=>setView('grid'));
 // 下までスクロールしたら自動で続きを表示
 if('IntersectionObserver' in window)new IntersectionObserver(es=>{if(es[0].isIntersecting&&!$('more').hidden){shown+=PAGE;render(false)}},{rootMargin:'600px'}).observe($('more'));
-// リスト表示：カード名にカーソルで大きい画像、タップで拡大表示
+// リスト表示：左の画像にカーソルで大きい画像、タップで拡大表示
 const pop=$('pop'),pimg=pop.querySelector('img');const hoverable=matchMedia('(hover:hover)').matches;
-$('out').addEventListener('mouseover',e=>{const b=e.target.closest('.li .nm button');if(!b||!hoverable)return;pimg.src=sized(L[b.dataset.i].img,600);pop.hidden=false});
+$('out').addEventListener('mouseover',e=>{const b=e.target.closest('.li .th');if(!b||!hoverable)return;pimg.src=sized(L[b.dataset.i].img,600);pop.hidden=false});
 $('out').addEventListener('mousemove',e=>{if(pop.hidden)return;const w=260,h=370,x=e.clientX+24+w>innerWidth?e.clientX-w-24:e.clientX+24;pop.style.left=x+'px';pop.style.top=Math.max(8,Math.min(e.clientY-h/2,innerHeight-h-8))+'px'});
-$('out').addEventListener('mouseout',e=>{if(e.target.closest('.li .nm button'))pop.hidden=true});
-$('out').addEventListener('click',e=>{const b=e.target.closest('.li .nm button');if(!b)return;const c=L[b.dataset.i];pop.hidden=true;
+$('out').addEventListener('mouseout',e=>{if(e.target.closest('.li .th'))pop.hidden=true});
+$('out').addEventListener('click',e=>{const b=e.target.closest('.li .th');if(!b)return;const c=L[b.dataset.i];pop.hidden=true;
  $('modal').querySelector('img').src=sized(c.img,800);$('modal').querySelector('p').textContent=c.name+'　¥'+Number(c.price).toLocaleString('ja-JP');$('modal').hidden=false});
 $('modal').addEventListener('click',()=>{$('modal').hidden=true});
 addEventListener('keydown',e=>{if(e.key==='Escape')$('modal').hidden=true});
