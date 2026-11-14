@@ -156,7 +156,14 @@ def main():
     os.makedirs(OUT, exist_ok=True)
     have = known_ids()
     print('スプレッドシートのカード:', len(have), '枚')
-    ids = find_new(have)
+    # 前回までに「対象外」と判定したカード（基本エネルギー・マークなし等）は調べ直さない
+    skip = set()
+    try:
+        repo = os.environ.get('GITHUB_REPOSITORY', '')
+        skip = set(json.loads(urllib.request.urlopen(f'https://github.com/{repo}/releases/download/newcards/skipped.json', timeout=60).read()))
+    except Exception as e:
+        print('対象外リストなし（初回）:', e)
+    ids = [i for i in find_new(have) if i not in skip]
     print('未登録のカード:', len(ids), '枚')
     dates = code_dates(products()) if ids else {}
     print('発売日:', dates)
@@ -164,7 +171,7 @@ def main():
     for cid in ids:
         d = details(cid)
         if not d['exp'] or not d['img'] or d['kind'] == '基本エネルギー':
-            continue
+            skip.add(cid); continue
         if not d['name']:
             print('  カード名が読めないため除外:', cid); continue
         data = get(d['img'], binary=True)
@@ -173,7 +180,7 @@ def main():
         im = Image.open(io.BytesIO(data)).convert('RGB')
         d['reg'], d['reg_score'] = regulation(im)
         if d['reg_score'] < 0.5:   # レギュレーションマークがない＝スタンダード外の旧カード（プロモの再録など）
-            print(f"  マークなしのため除外: {d['exp']} {d['num']} {d['name']}"); os.remove(os.path.join(OUT, cid + '.jpg')); continue
+            print(f"  マークなしのため除外: {d['exp']} {d['num']} {d['name']}"); os.remove(os.path.join(OUT, cid + '.jpg')); skip.add(cid); continue
         d['reg_check'] = d['reg_score'] < 0.8      # 自信が低いものは「要確認」
         d['name'] = html.unescape(d['name'])
         d['release'] = dates.get(d['exp'], '')
@@ -181,7 +188,8 @@ def main():
         print(f"  {d['exp']} {d['num']}/{d['denom']} {d['name']} [{d['reg']} {d['reg_score']}] {{{d['rarity']}}} {d['kind']} 発売日:{d['release'] or '不明'}")
     json.dump(dict(updated=datetime.datetime.now(JST).isoformat(timespec='minutes'), cards=new),
               open(os.path.join(OUT, 'newcards.json'), 'w', encoding='utf-8'), ensure_ascii=False, indent=1)
-    print('新しいカード:', len(new), '枚（要確認', sum(c['reg_check'] for c in new), '枚）')
+    json.dump(sorted(skip), open(os.path.join(OUT, 'skipped.json'), 'w'))
+    print('新しいカード:', len(new), '枚（要確認', sum(c['reg_check'] for c in new), '枚）／対象外として記録:', len(skip), '枚')
 
 
 if __name__ == '__main__':
