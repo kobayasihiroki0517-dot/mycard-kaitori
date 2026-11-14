@@ -1,12 +1,13 @@
 """公式サイト（pokemon-card.com）に載った新しいカードを探して、スプレッドシートに取り込むためのデータを作る。
 
-  1. カード検索の「商品」一覧と商品情報の発売日から、発売前〜発売後60日の商品を調べる
-  2. カード一覧（スプレッドシート）にまだないカードの情報（エキスパンション・番号・名前・レアリティ・種類）を取得
+  1. カード検索（スタンダード）を新しい商品から順に見て、カード一覧（スプレッドシート）にまだないカードを探す
+     （基本エネルギーは除く。プロモカード M-P も確認）
+  2. そのカードの情報（エキスパンション・番号・名前・レアリティ・種類）を取得。発売日は商品情報から
   3. カード画像を取得し、左下のレギュレーションマーク（G/H/I/J…）を画像から判定
   4. 画像と newcards.json を GitHub の Release「newcards」に置く → スプレッドシートの「新カードを取り込む」で読み込む
 環境変数: SHEET_CSV_URL（買取表シートの公開CSV。gid を差し替えてカード一覧を読む）
 """
-import csv, io, json, os, re, sys, time, datetime, urllib.request
+import csv, html, io, json, os, re, sys, time, datetime, urllib.request
 import numpy as np
 from PIL import Image
 
@@ -65,31 +66,54 @@ def products():
     return out
 
 
-def target_pgs(prods):
+def code_dates(prods):
+    """発売前〜発売後60日の商品について {エキスパンション記号: 発売日}"""
     html = get('/card-search/index.php')
     pgs = re.findall(r'name: "pg", value: "(\d+)", group: "group-item-name", label: "([^"]*)"', html)
     today = datetime.datetime.now(JST).date()
-    res = []
+    out = {}
     for pg, label in pgs[:30]:
         n = norm(label)
         hit = next((p for p in prods if p[0] == n), None) or next((p for p in prods if n in p[0]), None) \
             or next((p for p in prods if p[0] in n and len(p[0]) > 6), None)
-        if not hit:
+        if not hit or not (-60 <= (datetime.date.fromisoformat(hit[1]) - today).days <= 60):
             continue
-        d = datetime.date.fromisoformat(hit[1])
-        if -60 <= (d - today).days <= 30:   # 発売60日前〜発売60日後
-            res.append(dict(pg=pg, label=label, date=hit[1]))
-    return res
+        cnt = {}
+        for c in search(f'pg={pg}', 1)[0]:
+            if c['folder'] != 'ENE':
+                cnt[c['folder']] = cnt.get(c['folder'], 0) + 1
+        if cnt:
+            code = max(cnt, key=cnt.get)
+            out.setdefault(code, hit[1])
+    return out
 
 
-def card_ids(pg):
-    ids, page = [], 1
-    while True:
-        j = json.loads(get(f'/card-search/resultAPI.php?keyword=&se_ta=&regulation_sidebar_form=all&pg={pg}&illust=&sm_and_keyword=true&page={page}'))
-        ids += [c['cardID'] for c in j.get('cardList') or []]
-        if page >= int(j.get('maxPage') or 1):
-            return ids
+def search(q, page):
+    j = json.loads(get(f'/card-search/resultAPI.php?keyword=&se_ta=&illust=&sm_and_keyword=true&{q}&page={page}'))
+    cards = [dict(id=c['cardID'], folder=(re.search(r'large/([^/]+)/', c['cardThumbFile']) or [None, ''])[1])
+             for c in j.get('cardList') or []]
+    return cards, int(j.get('maxPage') or 1)
+
+
+def find_new(have):
+    """スタンダードを1ページ目から見て、未登録カードがないページが5ページ続いたら終わり。プロモ M-P は全ページ"""
+    new, quiet, page = [], 0, 1
+    while quiet < 5 and page <= 60:
+        cards, maxp = search('regulation_sidebar_form=XY&pg=', page)
+        add = [c['id'] for c in cards if c['id'] not in have and c['folder'] != 'ENE']
+        new += add
+        quiet = 0 if add else quiet + 1
+        if page >= maxp:
+            break
         page += 1
+    page = 1
+    while True:
+        cards, maxp = search('regulation_sidebar_form=all&pg=M-P', page)
+        new += [c['id'] for c in cards if c['id'] not in have and c['folder'] != 'ENE']
+        if page >= maxp:
+            break
+        page += 1
+    return list(dict.fromkeys(new))
 
 
 RARE = lambda icon: re.sub(r'_c$', '', icon.replace('ic_rare_', '')).upper() if icon else ''
@@ -135,26 +159,27 @@ def main():
     os.makedirs(OUT, exist_ok=True)
     have = known_ids()
     print('スプレッドシートのカード:', len(have), '枚')
-    pgs = target_pgs(products())
-    print('確認する商品:', ', '.join(f"{p['label']}（{p['date']}）" for p in pgs) or 'なし')
-    new, seen = [], set()
-    for p in pgs:
-        for cid in card_ids(p['pg']):
-            if cid in have or cid in seen:
-                continue
-            seen.add(cid)
-            d = details(cid)
-            if not d['exp'] or not d['img'] or d['kind'] == '基本エネルギー' or d['exp'] == 'ENE':
-                continue
-            data = get(d['img'], binary=True)
-            with open(os.path.join(OUT, cid + '.jpg'), 'wb') as f:
-                f.write(data)
-            im = Image.open(io.BytesIO(data)).convert('RGB')
-            d['reg'], d['reg_score'] = regulation(im)
-            d['reg_check'] = d['reg_score'] < 0.8      # 自信が低いものは「要確認」
-            d['product'], d['release'] = p['label'], p['date']
-            new.append(d)
-            print(f"  {d['exp']} {d['num']}/{d['denom']} {d['name']} [{d['reg']} {d['reg_score']}] {{{d['rarity']}}} {d['kind']}")
+    ids = find_new(have)
+    print('未登録のカード:', len(ids), '枚')
+    dates = code_dates(products()) if ids else {}
+    print('発売日:', dates)
+    new = []
+    for cid in ids:
+        d = details(cid)
+        if not d['exp'] or not d['img'] or d['kind'] == '基本エネルギー':
+            continue
+        if not d['name']:
+            print('  カード名が読めないため除外:', cid); continue
+        data = get(d['img'], binary=True)
+        with open(os.path.join(OUT, cid + '.jpg'), 'wb') as f:
+            f.write(data)
+        im = Image.open(io.BytesIO(data)).convert('RGB')
+        d['reg'], d['reg_score'] = regulation(im)
+        d['reg_check'] = d['reg_score'] < 0.8      # 自信が低いものは「要確認」
+        d['name'] = html.unescape(d['name'])
+        d['release'] = dates.get(d['exp'], '')
+        new.append(d)
+        print(f"  {d['exp']} {d['num']}/{d['denom']} {d['name']} [{d['reg']} {d['reg_score']}] {{{d['rarity']}}} {d['kind']} 発売日:{d['release'] or '不明'}")
     json.dump(dict(updated=datetime.datetime.now(JST).isoformat(timespec='minutes'), cards=new),
               open(os.path.join(OUT, 'newcards.json'), 'w', encoding='utf-8'), ensure_ascii=False, indent=1)
     print('新しいカード:', len(new), '枚（要確認', sum(c['reg_check'] for c in new), '枚）')
