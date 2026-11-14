@@ -63,6 +63,9 @@ function priceFor_(rules, pos, cr, stock, rr, reg, kind) {
     // 割合込みで安くなりすぎたカードは買取保証に格下げ
     if (rules.lowLimit !== null && rules.lowLimit !== undefined && p <= rules.lowLimit)
       return [guaranteeFor_(rules, rr, reg, kind), '買取保証'];
+    // 買取保証の対象カードで、価格が保証額以下なら「買取保証」表示（例：RR 保証10円 → 10円以下は買取保証）
+    const g = guaranteeFor_(rules, rr, reg, kind);
+    if (typeof g === 'number' && g > 0 && p <= g) return [g, '買取保証'];
     return [p, '通常'];
   }
   return [guaranteeFor_(rules, rr, reg, kind), '買取保証'];
