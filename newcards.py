@@ -175,6 +175,8 @@ def main():
             f.write(data)
         im = Image.open(io.BytesIO(data)).convert('RGB')
         d['reg'], d['reg_score'] = regulation(im)
+        if d['reg_score'] < 0.5:   # レギュレーションマークがない＝スタンダード外の旧カード（プロモの再録など）
+            print(f"  マークなしのため除外: {d['exp']} {d['num']} {d['name']}"); os.remove(os.path.join(OUT, cid + '.jpg')); continue
         d['reg_check'] = d['reg_score'] < 0.8      # 自信が低いものは「要確認」
         d['name'] = html.unescape(d['name'])
         d['release'] = dates.get(d['exp'], '')
