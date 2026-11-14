@@ -1,0 +1,35 @@
+name: 新カードを探す
+
+on:
+  workflow_dispatch:
+  # 公式サイトのカード情報は発売1週間前の14時に公開される → 毎日14:20（日本時間）に確認
+  schedule:
+    - cron: '20 5 * * *'
+
+permissions:
+  contents: write   # Release「newcards」に画像と一覧を置くため
+
+concurrency:
+  group: newcards
+  cancel-in-progress: false
+
+jobs:
+  find:
+    runs-on: ubuntu-latest
+    timeout-minutes: 60
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+      - run: pip install -q pillow numpy
+      - name: 公式サイトから新しいカードを探す
+        env:
+          SHEET_CSV_URL: ${{ secrets.SHEET_CSV_URL }}
+        run: python newcards.py
+      - name: 画像と一覧をReleaseに置く
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          gh release view newcards >/dev/null 2>&1 || gh release create newcards --title "新カード（取り込み待ち）" --notes "スプレッドシートの「新カードを取り込む」で使うデータです。自動で更新されます。"
+          gh release upload newcards newcards/* --clobber

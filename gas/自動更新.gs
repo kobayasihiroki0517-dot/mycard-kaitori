@@ -9,6 +9,9 @@ function autoUpdateDaily() {
   const log = [];
   const t0 = new Date();
   try {
+    // 新カード（公式サイトに公開されたカード）を先に取り込む → このあとのPOS・カードラッシュ照合に含める
+    try { fetchReleaseDates_(); importNewCards_(false); log.push('新カード：' + (p.getProperty('NEW_LAST') || '')); }
+    catch (e) { log.push('新カード：取り込めず（' + (e.message || e) + '）'); }
     const item = latestCsv_('item'), stock = latestCsv_('stock');
     if (item) {
       importPos_(true, false, true);   // 中でカードラッシュ取得・価格ルール適用まで行う
@@ -19,7 +22,7 @@ function autoUpdateDaily() {
       log.push('POS：CSVなし（カードラッシュと価格ルールのみ更新）');
     }
     log.push('カードラッシュ：' + (p.getProperty('CR_LAST') || '不明'));
-    try { fetchReleaseDates_(); log.push('発売日：' + (p.getProperty('REL_LAST') || '確認済み')); } catch (e) { log.push('発売日：取得できず（' + (e.message || e) + '）'); }
+    log.push('発売日：' + (p.getProperty('REL_LAST') || '確認済み'));
     try { log.push('強化買取候補：' + updateCandidates_() + ' 枚'); } catch (e) { log.push('強化買取候補：更新できず（' + (e.message || e) + '）'); }
     cleanupPosFolder_();
     dispatchQuiet_(false);
