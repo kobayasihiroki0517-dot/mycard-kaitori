@@ -127,11 +127,11 @@ footer{background:var(--ink);color:#fff;text-align:center;font-size:13px;padding
  <select id="exp" aria-label="エキスパンション"><option value="">全エキスパンション</option></select>
  <select id="rr" aria-label="レアリティ"><option value="">全レアリティ</option></select>
  <select id="kind" aria-label="カードの種類"><option value="">全種類</option></select>
- <select id="sort" aria-label="並び順"><option value="high">買取価格の高い順</option><option value="low">買取価格の安い順</option><option value="no">発売の新しい順（エキスパンション・番号）</option></select>
+ <select id="sort" aria-label="並び順"><option value="feat">★ 強化買取中</option><option value="high">買取価格の高い順</option><option value="low">買取価格の安い順</option><option value="no">発売の新しい順（エキスパンション・番号）</option></select>
  <div class="view" role="group" aria-label="表示切替"><button id="vList" type="button">リスト</button><button id="vGrid" type="button">画像</button></div>
 </div>
 <div class="bar"><span><b id="count">0</b> 件</span><span>価格は1枚あたりの買取価格（税込）です</span></div>
-<section id="featS"><h2>★ 高価買取カード</h2><div class="grid feat" id="feat"></div></section>
+<section id="featS"><h2>★ 強化買取中</h2><div class="grid feat" id="feat"></div></section>
 <div id="out"></div>
 <button class="more" id="more" type="button" hidden>もっと見る</button>
 <p class="empty" id="empty" hidden>条件に合うカードがありません。</p>
@@ -172,7 +172,8 @@ const HEAD='<div class="li hd" aria-hidden="true"><span>画像</span><span>エ�
 function filtered(){
  const q=$('q').value.trim(),e=$('exp').value,r=$('rr').value,k=$('kind').value,s=$('sort').value;
  let A=CARDS.filter(c=>(!q||c.name.includes(q))&&(!e||c.exp===e)&&(!r||c.rr===r)&&(!k||c.kind===k));
- if(s==='high')A.sort((a,b)=>pnum(b)-pnum(a));
+ if(s==='feat')A=A.filter(c=>c.feat).sort((a,b)=>pnum(b)-pnum(a));
+ else if(s==='high')A.sort((a,b)=>pnum(b)-pnum(a));
  else if(s==='low')A.sort((a,b)=>pnum(a)-pnum(b));
  else A.sort((a,b)=>eo(a.exp)-eo(b.exp)||a.exp.localeCompare(b.exp)||a.num.localeCompare(b.num,'ja',{numeric:true}));
  return A;
@@ -180,13 +181,13 @@ function filtered(){
 function render(reset){
  if(reset){shown=PAGE;L=filtered()}
  const plain=!$('q').value.trim()&&!$('exp').value&&!$('rr').value&&!$('kind').value;
- const F=plain?CARDS.filter(c=>c.feat).sort((a,b)=>pnum(b)-pnum(a)):[];
+ const F=plain&&$('sort').value!=='feat'?CARDS.filter(c=>c.feat).sort((a,b)=>pnum(b)-pnum(a)):[];
  $('featS').hidden=!F.length;$('feat').innerHTML=F.map(card).join('');
  const part=L.slice(0,shown);
  $('out').className=view==='grid'?'grid':'list';
  $('out').innerHTML=view==='grid'?part.map(card).join(''):HEAD+part.map((c,j)=>row(c,j)).join('');
  $('out').hidden=!part.length;
- $('more').hidden=shown>=L.length;$('empty').hidden=L.length>0;$('count').textContent=L.length.toLocaleString('ja-JP');
+ $('more').hidden=shown>=L.length;$('empty').hidden=L.length>0;$('empty').textContent=$('sort').value==='feat'?'現在、強化買取中のカードはありません。':'条件に合うカードがありません。';$('count').textContent=L.length.toLocaleString('ja-JP');
  $('vList').setAttribute('aria-pressed',view==='list');$('vGrid').setAttribute('aria-pressed',view==='grid');
 }
 // 見出しの高さぶん下に検索欄を固定。固定中は影を付け、スマホは検索窓だけにたたむ
@@ -197,6 +198,7 @@ if('IntersectionObserver' in window){let io;const watch=()=>{io&&io.disconnect()
 $('fbtn').addEventListener('click',()=>{const o=tools.classList.toggle('open');$('fbtn').setAttribute('aria-expanded',o)});
 // 条件を変えたら、一覧の先頭が見える位置まで戻す（スクロール中に絞り込んだとき）
 const toTop=()=>{if(tools.classList.contains('stuck')){const y=$('sent').getBoundingClientRect().top+scrollY-hdr.offsetHeight;scrollTo({top:y})}};
+$('sort').value=CARDS.some(c=>c.feat)?'feat':'high';
 ['q','exp','rr','kind','sort'].forEach(id=>$(id).addEventListener('input',()=>{render(true);toTop()}));
 $('more').addEventListener('click',()=>{shown+=PAGE;render(false)});
 const setView=v=>{view=v;try{localStorage.setItem('mycard_view',v)}catch(e){}render(false)};
