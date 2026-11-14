@@ -1,10 +1,12 @@
 /** 強化買取候補
- *  在庫0枚（POSの在庫一覧にない／在庫数0）のカードのうち、表示価格が設定額以上のものを
- *  「強化買取候補」シートに高い順で一覧にする。チェックしたカードは買取表で「掲載」「目玉」を○にする。
+ *  在庫0枚（POSの在庫一覧にない／在庫数0）のカードのうち、右側の「候補の条件」に当てはまるものを
+ *  「強化買取候補」シートに一覧にする（条件の順 → 表示価格の高い順）。チェックしたカードは買取表で「掲載」「目玉」を○にする。
  */
 const CAND_SHEET = '強化買取候補';
-const CAND_HEAD = ['追加', '画像', 'エキスパンション', '番号', 'カード名', 'レギュレーション', 'レアリティ', '種類', '表示価格', 'POS在庫', '強化買取中'];
-const CAND_MAX = 500;   // 一覧に出す最大件数
+const CAND_HEAD = ['追加', '画像', 'エキスパンション', '番号', 'カード名', 'レギュレーション', 'レアリティ', '種類', '表示価格', 'POS在庫', '強化買取中', '該当条件'];
+const CAND_MAX = 300;   // 条件1つあたりの最大件数
+const COND_COL = 14;    // 条件の表：N列〜Q列（3行目が見出し、4〜9行目が条件）
+const COND_HEAD = ['対象レアリティ（空欄＝すべて）', '対象の種類（空欄＝すべて）', '表示価格（円以上）', '表示価格（円以下・空欄＝上限なし）'];
 
 function candSheet_() {
   const ss = SpreadsheetApp.getActive();
@@ -12,14 +14,42 @@ function candSheet_() {
   if (sh) return sh;
   sh = ss.insertSheet(CAND_SHEET, 2);
   sh.getRange('A1').setValue('【強化買取候補】在庫0枚のカード（表示価格の高い順）').setFontWeight('bold').setFontSize(13);
-  sh.getRange('F1').setValue('表示価格がこの金額以上').setHorizontalAlignment('right');
-  sh.getRange('G1').setValue(1000).setBackground('#FFF2CC').setFontWeight('bold').setNumberFormat('#,##0"円"');
-  sh.getRange('A2').setValue('※「追加」にチェック →「買取表ツール」→「チェックした候補を強化買取にする」で、買取表の「掲載」「目玉」が○になります。買取保証のカードは候補に出しません。')
+  sh.getRange('A2').setValue('※「追加」にチェック →「買取表ツール」→「チェックした候補を強化買取にする」で、買取表の「掲載」「目玉」が○になります。候補の条件は右側の黄色い表で変えられます。買取保証のカードは候補に出しません。')
     .setFontSize(9).setFontColor('#595757');
   sh.getRange(3, 1, 1, CAND_HEAD.length).setValues([CAND_HEAD]).setFontWeight('bold').setBackground('#231916').setFontColor('#FFFFFF');
   sh.setFrozenRows(3);
   sh.setColumnWidth(1, 44); sh.setColumnWidth(2, 70); sh.setColumnWidth(5, 220);
+  ensureCondTable_(sh, 1000);
   return sh;
+}
+
+/* 右側に「候補の条件」の表を用意（以前のG1の金額設定があれば条件1に引き継ぐ） */
+function ensureCondTable_(sh, firstMin) {
+  if (sh.getRange(3, COND_COL).getDisplayValue() === COND_HEAD[0]) return;
+  const g1 = String(sh.getRange('G1').getDisplayValue()).replace(/[^\d]/g, '');
+  if (g1) { firstMin = Number(g1); sh.getRange('F1:G1').clearContent().clearFormat(); }
+  sh.getRange(2, COND_COL).setValue('【候補の条件】在庫0枚で、どれかの行に当てはまるカードを候補にします（1行＝1条件）').setFontWeight('bold');
+  sh.getRange(3, COND_COL - 1, 1, 5).setValues([['条件'].concat(COND_HEAD)]).setFontWeight('bold').setBackground('#231916').setFontColor('#FFFFFF').setWrap(true);
+  sh.getRange(4, COND_COL - 1, 6, 5).setValues([
+    [1, '', '', firstMin || 1000, ''],
+    [2, '', 'トレーナーズ', 10, 999],
+    [3, '', 'ポケモン', 10, 999],
+    [4, '', '', '', ''], [5, '', '', '', ''], [6, '', '', '', '']]);
+  sh.getRange(4, COND_COL, 6, 4).setBackground('#FFF2CC');
+  sh.getRange(10, COND_COL).setValue('※種類：ポケモン／トレーナーズ（＝グッズ・ポケモンのどうぐ・サポート・スタジアム）／グッズ／ポケモンのどうぐ／サポート／スタジアム／エネルギー。レアリティは「C,U」のようにカンマ区切りで複数指定できます。')
+    .setFontSize(9).setFontColor('#595757').setWrap(true);
+  sh.setColumnWidth(COND_COL - 1, 44);
+  for (let c = 0; c < 4; c++) sh.setColumnWidth(COND_COL + c, 150);
+}
+
+function readConds_(sh) {
+  return sh.getRange(4, COND_COL, 6, 4).getDisplayValues().map((r, i) => ({
+    no: i + 1,
+    rr: splitList_(r[0]),
+    kinds: kindList_(r[1]),
+    min: r[2] === '' ? null : Number(String(r[2]).replace(/[^\d]/g, '')),
+    max: r[3] === '' ? null : Number(String(r[3]).replace(/[^\d]/g, ''))
+  })).filter(c => c.rr.length || c.kinds.length || c.min !== null || c.max !== null);
 }
 
 function updateCandidatesNow() {
@@ -31,7 +61,8 @@ function updateCandidatesNow() {
 function updateCandidates_() {
   const ss = SpreadsheetApp.getActive();
   const sh = candSheet_();
-  const min = Number(String(sh.getRange('G1').getDisplayValue()).replace(/[^\d]/g, '')) || 0;
+  ensureCondTable_(sh, 1000);
+  const conds = readConds_(sh);
   const list = ss.getSheetByName('カード一覧');
   const head = list.getRange(1, 1, 1, list.getLastColumn()).getDisplayValues()[0];
   const ix = h => head.indexOf(h);
@@ -42,22 +73,33 @@ function updateCandidates_() {
   // 買取表で強化買取中（掲載○・目玉○）のカード
   const feat = featuredKeys_();
   const num = s => Number(String(s).replace(/[^\d]/g, '')) || 0;
-  const rows = v.filter(r => r[0] && r[cCls] === '通常' && num(r[cStock]) === 0 && num(r[cPrice]) >= min)
-    .sort((a, b) => num(b[cPrice]) - num(a[cPrice])).slice(0, CAND_MAX)
-    .map(r => {
+  const cRr = ix('レアリティ'), cKind = ix('種類');
+  const used = new Set(), rows = [];
+  conds.forEach(cd => {
+    v.filter(r => {
+      if (!r[0] || r[cCls] !== '通常' || num(r[cStock]) !== 0) return false;
+      const p = num(r[cPrice]);
+      return (cd.min === null || p >= cd.min) && (cd.max === null || p <= cd.max) &&
+             (!cd.rr.length || cd.rr.indexOf(r[cRr]) >= 0) &&
+             (!cd.kinds.length || cd.kinds.indexOf(kindOf_(r[cKind])) >= 0);
+    }).sort((a, b) => num(b[cPrice]) - num(a[cPrice])).slice(0, CAND_MAX).forEach(r => {
       const key = [r[0], r[1], r[2], r[3]].join('|');
-      return [false, '', r[0], r[1], r[2], r[3], r[ix('レアリティ')], kindOf_(r[ix('種類')]), num(r[cPrice]),
-              r[cStock] === '' ? 0 : num(r[cStock]), feat.has(key) ? '○' : '', r[ix('画像URL（ドライブ）')]];
+      if (used.has(key)) return;   // 先の条件で出したカードは重複させない
+      used.add(key);
+      rows.push([false, '', r[0], r[1], r[2], r[3], r[cRr], kindOf_(r[cKind]), num(r[cPrice]),
+                 r[cStock] === '' ? 0 : num(r[cStock]), feat.has(key) ? '○' : '', cd.no, r[ix('画像URL（ドライブ）')]]);
     });
+  });
 
   // 書き込み（前回分は消してから）
+  sh.getRange(3, 1, 1, CAND_HEAD.length).setValues([CAND_HEAD]).setFontWeight('bold').setBackground('#231916').setFontColor('#FFFFFF');
   const old = sh.getLastRow();
   if (old > 3) { sh.getRange(4, 1, old - 3, CAND_HEAD.length).clearContent().removeCheckboxes(); }
   if (rows.length) {
     sh.getRange(4, 4, rows.length, 1).setNumberFormat('@');
     sh.getRange(4, 1, rows.length, CAND_HEAD.length).setValues(rows.map(r => r.slice(0, CAND_HEAD.length)));
     sh.getRange(4, 1, rows.length, 1).insertCheckboxes();
-    sh.getRange(4, 2, rows.length, 1).setFormulas(rows.map(r => [r[11] ? '=IMAGE("' + r[11] + '=w200")' : '']));
+    sh.getRange(4, 2, rows.length, 1).setFormulas(rows.map(r => [r[12] ? '=IMAGE("' + r[12] + '=w200")' : '']));
     sh.getRange(4, 9, rows.length, 1).setNumberFormat('"¥"#,##0');
     sh.setRowHeights(4, rows.length, 90);
   }
