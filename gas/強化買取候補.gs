@@ -111,8 +111,10 @@ function updateCandidates_() {
 
   // 書き込み（前回分は消してから）
   sh.getRange(3, 1, 1, CAND_HEAD.length).setValues([CAND_HEAD]).setFontWeight('bold').setBackground('#231916').setFontColor('#FFFFFF');
+  ensureSearchBox_(sh);
+  if (sh.getFilter()) sh.getFilter().remove();   // 並び替え・検索のフィルタは作り直す
   const old = sh.getLastRow();
-  if (old > 3) { sh.getRange(4, 1, old - 3, CAND_HEAD.length).clearContent().removeCheckboxes(); }
+  if (old > 3) { sh.getRange(4, 1, old - 3, CAND_HEAD.length).clearContent().removeCheckboxes(); sh.showRows(4, old - 3); }
   if (rows.length) {
     sh.getRange(4, 4, rows.length, 1).setNumberFormat('@');
     sh.getRange(4, 1, rows.length, CAND_HEAD.length).setValues(rows.map(r => r.slice(0, CAND_HEAD.length)));
@@ -122,7 +124,41 @@ function updateCandidates_() {
     sh.setRowHeights(4, rows.length, 90);
   }
   sh.getRange('I1').setValue('更新：' + Utilities.formatDate(new Date(), 'Asia/Tokyo', 'M/d HH:mm')).setFontColor('#595757');
+  // 見出し行にフィルタを付ける → 各列の ▼ から並び替え・絞り込みができる
+  sh.getRange(3, 1, Math.max(rows.length, 1) + 1, CAND_HEAD.length).createFilter();
+  applyCandSearch_(sh);
   return rows.length;
+}
+
+/* ---------- 検索欄（J1：🔍 検索、K1〜L1：入力欄） ---------- */
+function ensureSearchBox_(sh) {
+  if (sh.getRange('J1').getDisplayValue() === '🔍 検索') return;
+  sh.getRange('J1').setValue('🔍 検索').setFontWeight('bold').setHorizontalAlignment('right');
+  const box = sh.getRange('K1:L1');
+  box.merge().setBackground('#FFF2CC').setBorder(true, true, true, true, false, false, '#C40F24', SpreadsheetApp.BorderStyle.SOLID_MEDIUM)
+     .setNote('カード名・エキスパンション・番号・レアリティ・種類のどれかに含まれる文字で絞り込みます。\n消すと全件表示に戻ります。');
+  sh.setColumnWidth(11, 110); sh.setColumnWidth(12, 110);
+}
+
+/* 検索欄の文字で一覧を絞り込む（空なら解除） */
+function applyCandSearch_(sh) {
+  const f = sh.getFilter();
+  if (!f) return;
+  const term = String(sh.getRange('K1').getDisplayValue()).trim();
+  if (!term) { f.removeColumnFilterCriteria(5); return; }
+  const t = term.replace(/"/g, '""');
+  const crit = SpreadsheetApp.newFilterCriteria()
+    .whenFormulaSatisfied('=ISNUMBER(SEARCH("' + t + '",C4&" "&D4&" "&E4&" "&F4&" "&G4&" "&H4))').build();
+  f.setColumnFilterCriteria(5, crit);
+}
+
+/* 検索欄を書き換えたら自動で絞り込む（シンプルトリガー） */
+function onEdit(e) {
+  try {
+    const r = e && e.range;
+    if (!r || r.getSheet().getName() !== CAND_SHEET) return;
+    if (r.getRow() === 1 && r.getColumn() >= 11 && r.getColumn() <= 12) applyCandSearch_(r.getSheet());
+  } catch (err) { console.log(err); }
 }
 
 function featuredKeys_() {
