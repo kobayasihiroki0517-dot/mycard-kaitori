@@ -32,4 +32,8 @@ jobs:
           GH_TOKEN: ${{ github.token }}
         run: |
           gh release view newcards >/dev/null 2>&1 || gh release create newcards --title "新カード（取り込み待ち）" --notes "スプレッドシートの「新カードを取り込む」で使うデータです。自動で更新されます。"
+          # 取り込み済みなどで不要になった古い画像は消す
+          for a in $(gh release view newcards --json assets -q '.assets[].name' | grep '\.jpg$'); do
+            [ -f "newcards/$a" ] || gh release delete-asset newcards "$a" -y
+          done
           gh release upload newcards newcards/* --clobber
