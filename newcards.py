@@ -1,7 +1,7 @@
 """公式サイト（pokemon-card.com）に載った新しいカードを探して、スプレッドシートに取り込むためのデータを作る。
 
   1. カード検索（スタンダード）を新しい商品から順に見て、カード一覧（スプレッドシート）にまだないカードを探す
-     （基本エネルギーは除く。プロモカード M-P も確認）
+     （基本エネルギーは除く。一覧の後ろにまとまっているプロモカードも確認）
   2. そのカードの情報（エキスパンション・番号・名前・レアリティ・種類）を取得。発売日は商品情報から
   3. カード画像を取得し、左下のレギュレーションマーク（G/H/I/J…）を画像から判定
   4. 画像と newcards.json を GitHub の Release「newcards」に置く → スプレッドシートの「新カードを取り込む」で読み込む
@@ -96,8 +96,9 @@ def search(q, page):
 
 
 def find_new(have):
-    """スタンダードを1ページ目から見て、未登録カードがないページが5ページ続いたら終わり。プロモ M-P は全ページ"""
-    new, quiet, page = [], 0, 1
+    """スタンダードを1ページ目から見て、未登録カードがないページが5ページ続いたら終わり。
+    プロモ（M-P・SV-P など）は一覧の後ろの方にまとまっているので、最後の35ページも毎回確認する"""
+    new, quiet, page, maxp = [], 0, 1, 1
     while quiet < 5 and page <= 60:
         cards, maxp = search('regulation_sidebar_form=XY&pg=', page)
         add = [c['id'] for c in cards if c['id'] not in have and c['folder'] != 'ENE']
@@ -106,13 +107,9 @@ def find_new(have):
         if page >= maxp:
             break
         page += 1
-    page = 1
-    while True:
-        cards, maxp = search('regulation_sidebar_form=all&pg=M-P', page)
+    for p in range(max(page + 1, maxp - 34), maxp + 1):
+        cards, _ = search('regulation_sidebar_form=XY&pg=', p)
         new += [c['id'] for c in cards if c['id'] not in have and c['folder'] != 'ENE']
-        if page >= maxp:
-            break
-        page += 1
     return list(dict.fromkeys(new))
 
 
