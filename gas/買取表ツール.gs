@@ -7,6 +7,8 @@ function onOpen() {
     .addItem('未入力の価格をカードラッシュから取得', 'fillFromCardrushNow')
     .addItem('価格ルールを適用（再計算）', 'applyPriceRulesNow')
     .addItem('強化買取候補を更新（在庫0枚）', 'updateCandidatesNow')
+    .addItem('候補を一括でチェック（表示中のみ）', 'checkAllCandidates')
+    .addItem('候補のチェックをすべて外す', 'uncheckAllCandidates')
     .addItem('チェックした候補を強化買取にする', 'promoteCandidates')
     .addItem('発売日を公式サイトから取得', 'fetchReleaseDatesNow')
     .addItem('新カードを取り込む（公式サイトに公開されたカード）', 'importNewCardsNow')

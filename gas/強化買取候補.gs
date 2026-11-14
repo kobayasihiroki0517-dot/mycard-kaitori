@@ -112,6 +112,8 @@ function updateCandidates_() {
 
   // 書き込み（前回分は消してから）
   sh.getRange(3, 1, 1, CAND_HEAD.length).setValues([CAND_HEAD]).setFontWeight('bold').setBackground('#231916').setFontColor('#FFFFFF');
+  // 見出しの「追加」欄はチェックボックス：ここにチェックを入れると表示中の候補を一括でチェック（外すと一括で外す）
+  sh.getRange('A3').setValue(false).insertCheckboxes().setNote('ここにチェック → 表示中（検索・絞り込み後）の候補をすべてチェック\nチェックを外す → すべて外す');
   ensureSearchBox_(sh);
   if (sh.getFilter()) sh.getFilter().remove();   // 並び替え・検索のフィルタは作り直す
   const old = sh.getLastRow();
@@ -159,7 +161,42 @@ function onEdit(e) {
     const r = e && e.range;
     if (!r || r.getSheet().getName() !== CAND_SHEET) return;
     if (r.getRow() === 1 && r.getColumn() >= 11 && r.getColumn() <= 12) applyCandSearch_(r.getSheet());
+    if (r.getRow() === 3 && r.getColumn() === 1) setAllCand_(r.getSheet(), r.getValue() === true);
   } catch (err) { console.log(err); }
+}
+
+/* 表示中（検索・フィルタで隠れていない）候補の「追加」チェックを一括で付ける／外す */
+function setAllCand_(sh, on) {
+  const n = sh.getLastRow() - 3;
+  if (n <= 0) return 0;
+  const rng = sh.getRange(4, 1, n, 1);
+  const v = rng.getValues();
+  const f = sh.getFilter();
+  let filtered = false;
+  if (f) for (let c = 1; c <= CAND_HEAD.length; c++) if (f.getColumnFilterCriteria(c)) { filtered = true; break; }
+  let cnt = 0;
+  for (let i = 0; i < n; i++) {
+    if (v[i][0] !== true && v[i][0] !== false) continue;          // 空行は飛ばす
+    if (on && filtered && sh.isRowHiddenByFilter(4 + i)) continue; // 隠れている行はチェックしない
+    if (v[i][0] !== on) cnt++;
+    v[i][0] = on;
+  }
+  rng.setValues(v);
+  return cnt;
+}
+function checkAllCandidates() {
+  const sh = SpreadsheetApp.getActive().getSheetByName(CAND_SHEET);
+  if (!sh) return;
+  const n = setAllCand_(sh, true);
+  sh.getRange('A3').setValue(true);
+  SpreadsheetApp.getActive().toast(n + ' 枚にチェックを入れました（表示中の候補）', '強化買取候補');
+}
+function uncheckAllCandidates() {
+  const sh = SpreadsheetApp.getActive().getSheetByName(CAND_SHEET);
+  if (!sh) return;
+  setAllCand_(sh, false);
+  sh.getRange('A3').setValue(false);
+  SpreadsheetApp.getActive().toast('チェックをすべて外しました', '強化買取候補');
 }
 
 function featuredKeys_() {
@@ -207,6 +244,7 @@ function promoteCandidates() {
     sh.getRange(4 + x.i, 1).setValue(false);
     sh.getRange(4 + x.i, 11).setValue('○');
   });
+  sh.getRange('A3').setValue(false);
   ui.alert('強化買取にしました：' + picked.length + ' 枚（買取表に追加 ' + added + ' 枚／既存の行を更新 ' + updated + ' 枚）\n' +
            'Webに反映するには「買取表を更新（Web・印刷用PDF）」を押してください（毎日の自動更新でも反映されます）。');
 }
