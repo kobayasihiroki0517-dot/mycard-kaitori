@@ -6,6 +6,8 @@ function onOpen() {
     .addItem('POSから買取価格を取り込む', 'importPosNow')
     .addItem('未入力の価格をカードラッシュから取得', 'fillFromCardrushNow')
     .addItem('価格ルールを適用（再計算）', 'applyPriceRulesNow')
+    .addItem('強化買取候補を更新（在庫0枚）', 'updateCandidatesNow')
+    .addItem('チェックした候補を強化買取にする', 'promoteCandidates')
     .addSeparator()
     .addItem('毎日の自動更新をオン（時刻を指定）', 'enableAutoUpdate')
     .addItem('毎日の自動更新をオフ', 'disableAutoUpdate')

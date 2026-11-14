@@ -71,7 +71,7 @@ function priceFor_(rules, pos, cr, stock, rr, reg, kind) {
   return [guaranteeFor_(rules, rr, reg, kind), '買取保証'];
 }
 
-function applyPriceRulesNow() { applyPriceRules_(true); }
+function applyPriceRulesNow() { applyPriceRules_(true); try { updateCandidates_(); } catch (e) { console.log(e); } }
 
 function applyPriceRules_(interactive) {
   const say = m => { if (interactive) SpreadsheetApp.getUi().alert(m); else console.log(m); };
