@@ -6,7 +6,7 @@ const CAND_SHEET = '強化買取候補';
 const CAND_HEAD = ['追加', '画像', 'エキスパンション', '番号', 'カード名', 'レギュレーション', 'レアリティ', '種類', '表示価格', 'POS在庫', '強化買取中', '該当条件'];
 const CAND_MAX = 300;   // 条件1つあたりの最大件数
 const COND_COL = 14;    // 条件の表：N列〜Q列（3行目が見出し、4〜9行目が条件）
-const COND_HEAD = ['対象レアリティ（空欄＝すべて）', '対象の種類（空欄＝すべて）', '表示価格（円以上）', '表示価格（円以下・空欄＝上限なし）'];
+const COND_HEAD = ['対象レアリティ（空欄＝すべて）', '対象の種類（空欄＝すべて）', '表示価格（円以上）', '表示価格（円以下・空欄＝上限なし）', '買取保証のカードも含める（○）'];
 
 function candSheet_() {
   const ss = SpreadsheetApp.getActive();
@@ -25,30 +25,42 @@ function candSheet_() {
 
 /* 右側に「候補の条件」の表を用意（以前のG1の金額設定があれば条件1に引き継ぐ） */
 function ensureCondTable_(sh, firstMin) {
-  if (sh.getRange(3, COND_COL).getDisplayValue() === COND_HEAD[0]) return;
+  if (sh.getRange(3, COND_COL).getDisplayValue() === COND_HEAD[0]) {
+    if (sh.getRange(3, COND_COL + 4).getDisplayValue() !== COND_HEAD[4]) {   // 「買取保証も含める」列を後から追加
+      sh.getRange(3, COND_COL + 4).setValue(COND_HEAD[4]).setFontWeight('bold').setBackground('#231916').setFontColor('#FFFFFF').setWrap(true);
+      sh.getRange(4, COND_COL + 4, 6, 1).setBackground('#FFF2CC').setHorizontalAlignment('center');
+      // トレーナーズ・ポケモンの低価格帯の条件（種類だけ指定した行）は最初から○にしておく
+      const v = sh.getRange(4, COND_COL, 6, 2).getDisplayValues();
+      v.forEach((r, i) => { if (!r[0] && (r[1] === 'トレーナーズ' || r[1] === 'ポケモン')) sh.getRange(4 + i, COND_COL + 4).setValue('○'); });
+      sh.setColumnWidth(COND_COL + 4, 150);
+    }
+    return;
+  }
   const g1 = String(sh.getRange('G1').getDisplayValue()).replace(/[^\d]/g, '');
   if (g1) { firstMin = Number(g1); sh.getRange('F1:G1').clearContent().clearFormat(); }
   sh.getRange(2, COND_COL).setValue('【候補の条件】在庫0枚で、どれかの行に当てはまるカードを候補にします（1行＝1条件）').setFontWeight('bold');
-  sh.getRange(3, COND_COL - 1, 1, 5).setValues([['条件'].concat(COND_HEAD)]).setFontWeight('bold').setBackground('#231916').setFontColor('#FFFFFF').setWrap(true);
-  sh.getRange(4, COND_COL - 1, 6, 5).setValues([
-    [1, '', '', firstMin || 1000, ''],
-    [2, '', 'トレーナーズ', 10, 999],
-    [3, '', 'ポケモン', 10, 999],
-    [4, '', '', '', ''], [5, '', '', '', ''], [6, '', '', '', '']]);
-  sh.getRange(4, COND_COL, 6, 4).setBackground('#FFF2CC');
+  sh.getRange(3, COND_COL - 1, 1, 6).setValues([['条件'].concat(COND_HEAD)]).setFontWeight('bold').setBackground('#231916').setFontColor('#FFFFFF').setWrap(true);
+  sh.getRange(4, COND_COL - 1, 6, 6).setValues([
+    [1, '', '', firstMin || 1000, '', ''],
+    [2, '', 'トレーナーズ', 10, 999, '○'],
+    [3, '', 'ポケモン', 10, 999, '○'],
+    [4, '', '', '', '', ''], [5, '', '', '', '', ''], [6, '', '', '', '', '']]);
+  sh.getRange(4, COND_COL, 6, 5).setBackground('#FFF2CC');
+  sh.getRange(4, COND_COL + 4, 6, 1).setHorizontalAlignment('center');
   sh.getRange(10, COND_COL).setValue('※種類：ポケモン／トレーナーズ（＝グッズ・ポケモンのどうぐ・サポート・スタジアム）／グッズ／ポケモンのどうぐ／サポート／スタジアム／エネルギー。レアリティは「C,U」のようにカンマ区切りで複数指定できます。')
     .setFontSize(9).setFontColor('#595757').setWrap(true);
   sh.setColumnWidth(COND_COL - 1, 44);
-  for (let c = 0; c < 4; c++) sh.setColumnWidth(COND_COL + c, 150);
+  for (let c = 0; c < 5; c++) sh.setColumnWidth(COND_COL + c, 150);
 }
 
 function readConds_(sh) {
-  return sh.getRange(4, COND_COL, 6, 4).getDisplayValues().map((r, i) => ({
+  return sh.getRange(4, COND_COL, 6, 5).getDisplayValues().map((r, i) => ({
     no: i + 1,
     rr: splitList_(r[0]),
     kinds: kindList_(r[1]),
     min: r[2] === '' ? null : Number(String(r[2]).replace(/[^\d]/g, '')),
-    max: r[3] === '' ? null : Number(String(r[3]).replace(/[^\d]/g, ''))
+    max: r[3] === '' ? null : Number(String(r[3]).replace(/[^\d]/g, '')),
+    guar: ['○', '◯', 'o', 'O'].indexOf(String(r[4]).trim()) >= 0
   })).filter(c => c.rr.length || c.kinds.length || c.min !== null || c.max !== null);
 }
 
@@ -76,17 +88,23 @@ function updateCandidates_() {
   const cRr = ix('レアリティ'), cKind = ix('種類');
   const used = new Set(), rows = [];
   conds.forEach(cd => {
+    // 買取保証のカードは「1cm10円」など金額で比べられないため、価格の条件は通常価格のカードだけに使う
+    const isG = r => r[cCls] === '買取保証';
     v.filter(r => {
-      if (!r[0] || r[cCls] !== '通常' || num(r[cStock]) !== 0) return false;
-      const p = num(r[cPrice]);
-      return (cd.min === null || p >= cd.min) && (cd.max === null || p <= cd.max) &&
-             (!cd.rr.length || cd.rr.indexOf(r[cRr]) >= 0) &&
+      if (!r[0] || num(r[cStock]) !== 0) return false;
+      if (!(r[cCls] === '通常' || (cd.guar && isG(r)))) return false;
+      if (!isG(r)) {
+        const p = num(r[cPrice]);
+        if ((cd.min !== null && p < cd.min) || (cd.max !== null && p > cd.max)) return false;
+      }
+      return (!cd.rr.length || cd.rr.indexOf(r[cRr]) >= 0) &&
              (!cd.kinds.length || cd.kinds.indexOf(kindOf_(r[cKind])) >= 0);
-    }).sort((a, b) => num(b[cPrice]) - num(a[cPrice])).slice(0, CAND_MAX).forEach(r => {
+    }).sort((a, b) => (isG(a) - isG(b)) || (isG(a) ? 0 : num(b[cPrice]) - num(a[cPrice]))).slice(0, CAND_MAX).forEach(r => {
       const key = [r[0], r[1], r[2], r[3]].join('|');
       if (used.has(key)) return;   // 先の条件で出したカードは重複させない
       used.add(key);
-      rows.push([false, '', r[0], r[1], r[2], r[3], r[cRr], kindOf_(r[cKind]), num(r[cPrice]),
+      const pv = isG(r) ? '買取保証 ' + (/^\d+$/.test(String(r[cPrice]).replace(/[,¥円]/g, '')) ? '¥' + num(r[cPrice]) : (r[cPrice] || '')) : num(r[cPrice]);
+      rows.push([false, '', r[0], r[1], r[2], r[3], r[cRr], kindOf_(r[cKind]), pv,
                  r[cStock] === '' ? 0 : num(r[cStock]), feat.has(key) ? '○' : '', cd.no, r[ix('画像URL（ドライブ）')]]);
     });
   });
@@ -143,7 +161,7 @@ function promoteCandidates() {
     if (!row) {
       row = next++;
       buy.getRange(row, 2).setNumberFormat('@');
-      buy.getRange(row, 1, 1, 5).setValues([[r[2], String(r[3]), r[4], r[5], r[8]]]);
+      buy.getRange(row, 1, 1, 5).setValues([[r[2], String(r[3]), r[4], r[5], String(r[8]).replace(/^買取保証 ¥?/, '')]]);
       added++;
     } else updated++;
     buy.getRange(row, cShow).setValue('○');
