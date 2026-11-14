@@ -132,20 +132,40 @@ def read_all_cards(sheet_url, prices):
 EXP_GID = '552350923'     # 「エキスパンション一覧」シート
 
 
-def read_exp_order(sheet_url):
-    """エキスパンションの発売順（1＝新しい）。シートの「発売順」列 → 読めなければ同梱の exp_order.json"""
+def read_exp_info(sheet_url):
+    """エキスパンションの (発売順 {code: 1＝新しい}, 発売日 {code: 'YYYY-MM-DD'})。
+    シートの「発売順」「発売日」列 → 読めなければ同梱の exp_order.json"""
     url = os.environ.get('SHEET_EXP_CSV_URL') or re.sub(r'gid=\d+', 'gid=' + EXP_GID, sheet_url)
     try:
         rows = list(csv.reader(io.StringIO(fetch(url).decode('utf-8-sig'))))
         head = [h.strip() for h in rows[0]]
         ci = next(i for i, h in enumerate(head) if h.startswith('発売順'))
-        out = {r[0].strip(): to_int(r[ci]) for r in rows[1:] if len(r) > ci and r[0].strip() and to_int(r[ci])}
-        if out:
-            return out
+        di = next((i for i, h in enumerate(head) if h.startswith('発売日')), None)
+        order = {r[0].strip(): to_int(r[ci]) for r in rows[1:] if len(r) > ci and r[0].strip() and to_int(r[ci])}
+        dates = {}
+        if di is not None:
+            for r in rows[1:]:
+                m = len(r) > di and re.search(r'(\d{4})\D(\d{1,2})\D(\d{1,2})', r[di])
+                if r and r[0].strip() and m:
+                    dates[r[0].strip()] = f"{m.group(1)}-{int(m.group(2)):02d}-{int(m.group(3)):02d}"
+        if order:
+            return order, dates
         raise ValueError('発売順が空です')
     except Exception as e:
-        print('エキスパンション一覧の発売順を読み込めませんでした（同梱の順番を使います）:', e)
-        return {c: i + 1 for i, c in enumerate(json.load(open(os.path.join(HERE, 'exp_order.json'), encoding='utf-8')))}
+        print('エキスパンション一覧を読み込めませんでした（同梱の順番・発売日を使います）:', e)
+        j = json.load(open(os.path.join(HERE, 'exp_order.json'), encoding='utf-8'))
+        lst, dates = (j, {}) if isinstance(j, list) else (j['order'], j.get('dates', {}))
+        return {c: i + 1 for i, c in enumerate(lst)}, dates
+
+
+def released(exp, dates, now=None):
+    """発売日の10時（日本時間）を過ぎていれば True。発売日が未登録なら発売済みとみなす"""
+    d = dates.get(exp)
+    if not d:
+        return True
+    now = now or datetime.datetime.now(JST)
+    y, m, dd = map(int, d.split('-'))
+    return now >= datetime.datetime(y, m, dd, 10, 0, tzinfo=JST)
 
 
 RULES_GID = '224697346'   # 「価格ルール」シート
@@ -195,6 +215,11 @@ def main():
     if not url:
         sys.exit('SHEET_CSV_URL が設定されていません')
     cards, skipped, prices = read_sheet(url)
+    exp_order, exp_dates = read_exp_info(url)
+    hold = sorted({c['exp'] for c in cards if not released(c['exp'], exp_dates)})
+    cards = [c for c in cards if released(c['exp'], exp_dates)]   # 未発売（発売日10時前）は載せない
+    if hold:
+        print('未発売のため載せないエキスパンション:', ', '.join(f"{e}（{exp_dates[e]} 10:00〜）" for e in hold))
     if not cards:
         print('掲載「○」のカードがないため、X用画像と印刷用PDFは作りません（Webページのみ作成）')
     print(f'掲載カード {len(cards)} 枚（目玉 {sum(c["feat"] for c in cards)} 枚）')
@@ -213,11 +238,11 @@ def main():
     if cards:
         save_pdf(a4_pages(cards, up), os.path.join(SITE, 'kaitori.pdf'))
 
-    all_cards = read_all_cards(url, prices) or cards
+    all_cards = [c for c in (read_all_cards(url, prices) or cards) if released(c['exp'], exp_dates)]
     print(f'Webページ掲載 {len(all_cards)} 枚')
     web_cards = [dict(c, img=c['url']) for c in all_cards]
     with open(os.path.join(SITE, 'index.html'), 'w', encoding='utf-8') as f:
-        f.write(build_web(web_cards, up, 'logo_h.png', read_rules(url), read_exp_order(url)))
+        f.write(build_web(web_cards, up, 'logo_h.png', read_rules(url), exp_order))
     shutil.copy(os.path.join(HERE, 'logo_h.png'), SITE)
     with open(os.path.join(SITE, 'cards.json'), 'w', encoding='utf-8') as f:
         json.dump(dict(updated=up, x_images=len(xs),

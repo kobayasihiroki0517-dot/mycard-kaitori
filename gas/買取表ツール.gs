@@ -8,6 +8,7 @@ function onOpen() {
     .addItem('価格ルールを適用（再計算）', 'applyPriceRulesNow')
     .addItem('強化買取候補を更新（在庫0枚）', 'updateCandidatesNow')
     .addItem('チェックした候補を強化買取にする', 'promoteCandidates')
+    .addItem('発売日を公式サイトから取得', 'fetchReleaseDatesNow')
     .addSeparator()
     .addItem('毎日の自動更新をオン（時刻を指定）', 'enableAutoUpdate')
     .addItem('毎日の自動更新をオフ', 'disableAutoUpdate')

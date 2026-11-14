@@ -87,11 +87,12 @@ function updateCandidates_() {
   const num = s => Number(String(s).replace(/[^\d]/g, '')) || 0;
   const cRr = ix('レアリティ'), cKind = ix('種類');
   const used = new Set(), rows = [];
+  const rel = releaseMap_(), now = new Date();   // 未発売（発売日10時前）のカードは候補に出さない
   conds.forEach(cd => {
     // 買取保証のカードは「1cm10円」など金額で比べられないため、価格の条件は通常価格のカードだけに使う
     const isG = r => r[cCls] === '買取保証';
     v.filter(r => {
-      if (!r[0] || num(r[cStock]) !== 0) return false;
+      if (!r[0] || num(r[cStock]) !== 0 || !isReleased_(rel, r[0], now)) return false;
       if (!(r[cCls] === '通常' || (cd.guar && isG(r)))) return false;
       if (!isG(r)) {
         const p = num(r[cPrice]);

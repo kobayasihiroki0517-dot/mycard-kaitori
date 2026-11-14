@@ -8,9 +8,10 @@ on:
         description: 'Xにも投稿する'
         type: boolean
         default: false
-  # 定時実行（時刻が決まったら # を外して時刻を書き換える。時刻はUTC＝日本時間－9時間）
-  # schedule:
-  #   - cron: '50 5 * * *'   # 毎日 14:50（日本時間）
+  # 毎朝10時すぎにWebを作り直す（発売日の10時に新弾のカードを載せるため。Xには投稿しない）
+  # 時刻はUTC＝日本時間－9時間。GitHubの混雑で数分〜数十分遅れることがあります
+  schedule:
+    - cron: '3 1 * * *'   # 毎日 10:03（日本時間）
 
 permissions:
   contents: read
@@ -66,7 +67,7 @@ jobs:
         id: deploy
         uses: actions/deploy-pages@v4
       - name: Xに投稿
-        if: ${{ github.event_name == 'schedule' || inputs.post_x }}
+        if: ${{ github.event_name == 'workflow_dispatch' && inputs.post_x }}
         env:
           X_API_KEY: ${{ secrets.X_API_KEY }}
           X_API_SECRET: ${{ secrets.X_API_SECRET }}

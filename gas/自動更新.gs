@@ -19,6 +19,7 @@ function autoUpdateDaily() {
       log.push('POS：CSVなし（カードラッシュと価格ルールのみ更新）');
     }
     log.push('カードラッシュ：' + (p.getProperty('CR_LAST') || '不明'));
+    try { fetchReleaseDates_(); log.push('発売日：' + (p.getProperty('REL_LAST') || '確認済み')); } catch (e) { log.push('発売日：取得できず（' + (e.message || e) + '）'); }
     try { log.push('強化買取候補：' + updateCandidates_() + ' 枚'); } catch (e) { log.push('強化買取候補：更新できず（' + (e.message || e) + '）'); }
     cleanupPosFolder_();
     dispatchQuiet_(false);
