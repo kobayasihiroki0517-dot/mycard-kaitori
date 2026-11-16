@@ -14,7 +14,7 @@ function candSheet_() {
   if (sh) return sh;
   sh = ss.insertSheet(CAND_SHEET, 2);
   sh.getRange('A1').setValue('【強化買取候補】在庫0枚のカード（表示価格の高い順）').setFontWeight('bold').setFontSize(13);
-  sh.getRange('A2').setValue('※「追加」にチェック →「買取表ツール」→「チェックした候補を強化買取にする」で、買取表の「掲載」「目玉」が○になります。候補の条件は右側の黄色い表で変えられます。買取保証のカードは候補に出しません。')
+  sh.getRange('A2').setValue('※「追加」にチェックを入れると、その場で強化買取（買取表の「掲載」「目玉」が○）になります。チェックを外すと強化買取をやめます。候補の条件は右側の黄色い表で変えられます。買取保証のカードは候補に出しません。')
     .setFontSize(9).setFontColor('#595757');
   sh.getRange(3, 1, 1, CAND_HEAD.length).setValues([CAND_HEAD]).setFontWeight('bold').setBackground('#231916').setFontColor('#FFFFFF');
   sh.setFrozenRows(3);
@@ -114,6 +114,7 @@ function updateCandidates_() {
   sh.getRange(3, 1, 1, CAND_HEAD.length).setValues([CAND_HEAD]).setFontWeight('bold').setBackground('#231916').setFontColor('#FFFFFF');
   // 見出しの「追加」欄はチェックボックス：ここにチェックを入れると表示中の候補を一括でチェック（外すと一括で外す）
   sh.getRange('A3').setValue(false).insertCheckboxes().setNote('ここにチェック → 表示中（検索・絞り込み後）の候補をすべてチェック\nチェックを外す → すべて外す');
+  sh.getRange('A2').setValue('※「追加」にチェックを入れると、その場で強化買取（買取表の「掲載」「目玉」が○）になります。チェックを外すと強化買取をやめます。見出し（A3）のチェックで表示中の候補を一括オン／オフ。候補の条件は右側の黄色い表で変えられます。');
   ensureSearchBox_(sh);
   if (sh.getFilter()) sh.getFilter().remove();   // 並び替え・検索のフィルタは作り直す
   const old = sh.getLastRow();
@@ -122,6 +123,8 @@ function updateCandidates_() {
     sh.getRange(4, 4, rows.length, 1).setNumberFormat('@');
     sh.getRange(4, 1, rows.length, CAND_HEAD.length).setValues(rows.map(r => r.slice(0, CAND_HEAD.length)));
     sh.getRange(4, 1, rows.length, 1).insertCheckboxes();
+    // すでに強化買取中のカードはチェックを入れた状態で表示
+    sh.getRange(4, 1, rows.length, 1).setValues(rows.map(r => [r[10] === '○']));
     sh.getRange(4, 2, rows.length, 1).setFormulas(rows.map(r => [r[12] ? '=IMAGE("' + r[12] + '=w200")' : '']));
     sh.getRange(4, 9, rows.length, 1).setNumberFormat('"¥"#,##0');
     sh.setRowHeights(4, rows.length, 90);
@@ -162,6 +165,15 @@ function onEdit(e) {
     if (!r || r.getSheet().getName() !== CAND_SHEET) return;
     if (r.getRow() === 1 && r.getColumn() >= 11 && r.getColumn() <= 12) applyCandSearch_(r.getSheet());
     if (r.getRow() === 3 && r.getColumn() === 1) setAllCand_(r.getSheet(), r.getValue() === true);
+    // 「追加」列のチェックを入れた／外した瞬間に買取表へ反映
+    if (r.getColumn() === 1 && r.getLastRow() >= 4) {
+      const sh = r.getSheet(), top = Math.max(r.getRow(), 4), n = r.getLastRow() - top + 1;
+      const v = sh.getRange(top, 1, n, 1).getValues();
+      const on = [], off = [];
+      v.forEach((x, k) => { if (x[0] === true) on.push(top - 4 + k); else if (x[0] === false) off.push(top - 4 + k); });
+      applyCand_(sh, on, true); applyCand_(sh, off, false);
+      SpreadsheetApp.getActive().toast('強化買取に反映しました（' + on.length + ' 枚オン／' + off.length + ' 枚オフ）', '強化買取候補', 3);
+    }
   } catch (err) { console.log(err); }
 }
 
@@ -182,6 +194,9 @@ function setAllCand_(sh, on) {
     v[i][0] = on;
   }
   rng.setValues(v);
+  const idx = [];
+  v.forEach((x, i) => { if (x[0] === on) idx.push(i); });
+  applyCand_(sh, idx, on);   // 買取表にも反映
   return cnt;
 }
 function checkAllCandidates() {
@@ -211,40 +226,63 @@ function featuredKeys_() {
   return set;
 }
 
-/* メニュー：チェックした候補を強化買取にする（買取表の「掲載」「目玉」を○。買取表にないカードは追加） */
-function promoteCandidates() {
-  const ui = SpreadsheetApp.getUi();
+/* ---------- チェック＝強化買取（チェックした瞬間に買取表へ反映） ----------
+ *  チェックを入れる → 買取表の「掲載」「目玉」「POS連動」を○（買取表にないカードは追加）
+ *  チェックを外す   → 買取表の「掲載」「目玉」を空欄（強化買取をやめる）
+ */
+function applyCand_(sh, idxs, on) {
+  if (!idxs.length) return { added: 0, updated: 0 };
   const ss = SpreadsheetApp.getActive();
-  const sh = ss.getSheetByName(CAND_SHEET);
-  if (!sh || sh.getLastRow() < 4) { ui.alert('先に「強化買取候補を更新」を実行してください。'); return; }
-  const v = sh.getRange(4, 1, sh.getLastRow() - 3, CAND_HEAD.length).getValues();
-  const picked = v.map((r, i) => ({ r: r, i: i })).filter(x => x.r[0] === true);
-  if (!picked.length) { ui.alert('「追加」にチェックが入っている候補がありません。'); return; }
-
   const buy = ss.getSheetByName('買取表');
   const head = buy.getRange(1, 1, 1, buy.getLastColumn()).getDisplayValues()[0];
-  const cShow = head.indexOf('掲載') + 1, cFeat = head.indexOf('目玉') + 1, cLink = head.indexOf('POS連動') + 1;
-  const last = Math.max(buy.getLastRow(), 1);
-  const cur = last > 1 ? buy.getRange(2, 1, last - 1, 4).getDisplayValues() : [];
+  const cShow = head.indexOf('掲載'), cFeat = head.indexOf('目玉'), cLink = head.indexOf('POS連動');
+  const last = buy.getLastRow();
+  const width = Math.max(cShow, cFeat, cLink, 4) + 1;
+  const data = last > 1 ? buy.getRange(2, 1, last - 1, width).getValues() : [];
+  const disp = last > 1 ? buy.getRange(2, 1, last - 1, 4).getDisplayValues() : [];
   const rowOf = {};
-  cur.forEach((r, i) => { if (r[0]) rowOf[r.join('|')] = i + 2; });
-  let next = last + 1, added = 0, updated = 0;
-  picked.forEach(x => {
-    const r = x.r, key = [r[2], String(r[3]), r[4], r[5]].join('|');
-    let row = rowOf[key];
-    if (!row) {
-      row = next++;
-      buy.getRange(row, 2).setNumberFormat('@');
-      buy.getRange(row, 1, 1, 5).setValues([[r[2], String(r[3]), r[4], r[5], String(r[8]).replace(/^買取保証 ¥?/, '')]]);
-      added++;
-    } else updated++;
-    buy.getRange(row, cShow).setValue('○');
-    buy.getRange(row, cFeat).setValue('○');
-    if (cLink) buy.getRange(row, cLink).setValue('○');
-    sh.getRange(4 + x.i, 1).setValue(false);
-    sh.getRange(4 + x.i, 11).setValue('○');
+  disp.forEach((r, i) => { if (r[0]) rowOf[r.join('|')] = i; });
+  const cand = sh.getRange(4, 1, sh.getLastRow() - 3, CAND_HEAD.length).getValues();
+  const mark = sh.getRange(4, 11, cand.length, 1).getValues();
+  const adds = [];
+  let updated = 0;
+  idxs.forEach(i => {
+    const r = cand[i], key = [r[2], String(r[3]), r[4], r[5]].join('|');
+    const j = rowOf[key];
+    if (j === undefined) {
+      if (!on) return;
+      const row = new Array(width).fill('');
+      row[0] = r[2]; row[1] = String(r[3]); row[2] = r[4]; row[3] = r[5];
+      row[4] = String(r[8]).replace(/^買取保証 ¥?/, '');
+      row[cShow] = '○'; row[cFeat] = '○'; if (cLink >= 0) row[cLink] = '○';
+      adds.push(row); rowOf[key] = -1;
+    } else if (j >= 0) {
+      data[j][cShow] = on ? '○' : ''; data[j][cFeat] = on ? '○' : '';
+      if (on && cLink >= 0) data[j][cLink] = '○';
+      updated++;
+    }
+    mark[i][0] = on ? '○' : '';
   });
-  sh.getRange('A3').setValue(false);
-  ui.alert('強化買取にしました：' + picked.length + ' 枚（買取表に追加 ' + added + ' 枚／既存の行を更新 ' + updated + ' 枚）\n' +
-           'Webに反映するには「買取表を更新（Web・印刷用PDF）」を押してください（毎日の自動更新でも反映されます）。');
+  // 掲載・目玉・POS連動の列だけ書き戻す（他の列の数式などには触れない）
+  [cShow, cFeat, cLink].filter(c => c >= 0).forEach(c => {
+    if (data.length) buy.getRange(2, c + 1, data.length, 1).setValues(data.map(r => [r[c]]));
+  });
+  if (adds.length) {
+    buy.getRange(last + 1, 2, adds.length, 1).setNumberFormat('@');
+    buy.getRange(last + 1, 1, adds.length, width).setValues(adds);
+  }
+  sh.getRange(4, 11, mark.length, 1).setValues(mark);
+  return { added: adds.length, updated: updated };
+}
+
+/* メニュー：今のチェック状態を買取表にまとめて反映（チェックあり＝強化買取、なし＝やめる） */
+function promoteCandidates() {
+  const sh = SpreadsheetApp.getActive().getSheetByName(CAND_SHEET);
+  if (!sh || sh.getLastRow() < 4) { SpreadsheetApp.getUi().alert('先に「強化買取候補を更新」を実行してください。'); return; }
+  const v = sh.getRange(4, 1, sh.getLastRow() - 3, 11).getValues();
+  const on = [], off = [];
+  v.forEach((r, i) => { if (r[0] === true) on.push(i); else if (r[0] === false && r[10] === '○') off.push(i); });
+  const a = applyCand_(sh, on, true); applyCand_(sh, off, false);
+  SpreadsheetApp.getUi().alert('強化買取：' + on.length + ' 枚（買取表に追加 ' + a.added + ' 枚）／やめた：' + off.length + ' 枚\n' +
+    'Webには「買取表を更新（Web・印刷用PDF）」か、毎日の自動更新で反映されます。');
 }

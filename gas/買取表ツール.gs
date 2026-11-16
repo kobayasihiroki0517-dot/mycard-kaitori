@@ -9,7 +9,7 @@ function onOpen() {
     .addItem('強化買取候補を更新（在庫0枚）', 'updateCandidatesNow')
     .addItem('候補を一括でチェック（表示中のみ）', 'checkAllCandidates')
     .addItem('候補のチェックをすべて外す', 'uncheckAllCandidates')
-    .addItem('チェックした候補を強化買取にする', 'promoteCandidates')
+    .addItem('チェック状態を強化買取にまとめて反映', 'promoteCandidates')
     .addItem('発売日を公式サイトから取得', 'fetchReleaseDatesNow')
     .addItem('新カードを取り込む（公式サイトに公開されたカード）', 'importNewCardsNow')
     .addSeparator()
