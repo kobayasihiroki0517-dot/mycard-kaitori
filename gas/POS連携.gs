@@ -18,7 +18,7 @@ function latestCsv_(kind) {
   const it = posFolder_().getFiles();
   while (it.hasNext()) {
     const f = it.next(), n = f.getName();
-    if (!/\.csv$/i.test(n)) continue;
+    if (!/\.csv$/i.test(n) || /^cardrush/i.test(n)) continue;
     const isStock = /^stock/i.test(n) || /在庫/.test(n);
     if ((kind === 'stock') !== isStock) continue;
     if (!best || f.getLastUpdated() > best.getLastUpdated()) best = f;

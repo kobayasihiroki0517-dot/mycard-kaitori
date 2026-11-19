@@ -36,11 +36,12 @@ function autoUpdateDaily() {
 
 /* 古いCSVをゴミ箱へ（商品マスタ・在庫一覧それぞれ新しい3つを残す） */
 function cleanupPosFolder_() {
-  const files = { item: [], stock: [] };
+  const files = { item: [], stock: [], cr: [] };
   const it = posFolder_().getFiles();
   while (it.hasNext()) {
     const f = it.next(), n = f.getName();
     if (!/\.csv$/i.test(n)) continue;
+    if (/^cardrush/i.test(n)) { (files.cr = files.cr || []).push(f); continue; }
     files[/^stock/i.test(n) || /在庫/.test(n) ? 'stock' : 'item'].push(f);
   }
   Object.keys(files).forEach(k => files[k].sort((a, b) => b.getLastUpdated() - a.getLastUpdated())

@@ -55,8 +55,13 @@ function fillFromCardrush_(interactive) {
   const say = m => { if (interactive) SpreadsheetApp.getUi().alert(m); else console.log(m); };
   let data;
   const props = PropertiesService.getDocumentProperties();
-  try { data = crFetchAll_(); } catch (e) {
-    props.setProperty('CR_LAST', '取得できず：' + (e.message || e)); say(String(e.message || e)); return 0;
+  // ① パソコンが保存した cardrush_*.csv（POS取込フォルダ）を優先。② なければGoogleから直接取得
+  data = crFromDrive_();
+  if (!data) {
+    try { data = crFetchAll_(); } catch (e) {
+      props.setProperty('CR_LAST', '取得できず：' + (e.message || e) + '（パソコンの「カードラッシュ取得」も届いていません）');
+      say(String(e.message || e)); return 0;
+    }
   }
   props.setProperty('CR_LAST', data.rows.length + ' 件取得' + (data.updatedAt ? '（カードラッシュ側の更新：' + data.updatedAt + '）' : ''));
   saveCrRaw_(data.rows);   // Webの一覧はこの生データからGitHubで作る
@@ -120,4 +125,23 @@ function saveCrRaw_(rows) {
     sh.getRange(2, 1, out.length, head.length).setNumberFormat('@');
     sh.getRange(2, 1, out.length, head.length).setValues(out.map(r => r.map(String)));
   }
+}
+
+/* パソコン（cr_fetch.ps1）がドライブの「POS取込」フォルダに保存したカードラッシュのCSVを読む
+ * （カードラッシュはGoogle・GitHubからの取得を拒否するため、お店のパソコンで取得して受け渡す） */
+function crFromDrive_() {
+  let best = null;
+  const it = posFolder_().getFiles();
+  while (it.hasNext()) {
+    const f = it.next();
+    if (!/^cardrush.*\.csv$/i.test(f.getName())) continue;
+    if (!best || f.getLastUpdated() > best.getLastUpdated()) best = f;
+  }
+  if (!best || Date.now() - best.getLastUpdated().getTime() > 3 * 864e5) return null;   // 3日より古いものは使わない
+  const v = readCsv_(best), h = v[0];
+  const rows = v.slice(1).filter(r => r[0]).map(r => {
+    const o = {}; h.forEach((k, i) => { o[k] = r[i]; }); o.amount = Number(o.amount) || 0; return o;
+  });
+  if (!rows.length) return null;
+  return { rows: rows, updatedAt: Utilities.formatDate(best.getLastUpdated(), 'Asia/Tokyo', 'M/d HH:mm') + '（パソコンで取得）' };
 }
