@@ -62,7 +62,9 @@ function priceFor_(rules, pos, cr, stock, rr, reg, kind) {
   if (cr > 0) {
     // 基準はカードラッシュのみ（POSの価格は使わない）：カードラッシュ価格 × 基準の割合
     const base = cr * (rules.basePct === undefined ? 100 : rules.basePct) / 100;
-    const p = Math.floor(base * ratioFor_(rules, Number(stock) || 0) / 100 / 10) * 10;
+    let p = Math.floor(base * ratioFor_(rules, Number(stock) || 0) / 100 / 10) * 10;
+    // 100円台（100〜999円）は50円単位で切り捨て（例：780円→750円、640円→600円）
+    if (p >= 100 && p < 1000) p = Math.floor(p / 50) * 50;
     // 割合込みで安くなりすぎたカードは買取保証に格下げ
     if (rules.lowLimit !== null && rules.lowLimit !== undefined && p <= rules.lowLimit)
       return [guaranteeFor_(rules, rr, reg, kind), '買取保証'];
