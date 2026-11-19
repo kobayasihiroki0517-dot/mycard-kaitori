@@ -71,8 +71,10 @@ function buildCrSheet_(rules) {
     const key = o ? [o[0], o[1], o[2], o[3]].join('|') : '';
     let stock = findStock(code, mm[1], x.name, spec);
     if (stock === '' && o && !spec) stock = o[cStock] === '' ? '' : Number(o[cStock]) || 0;
-    const res = priceFor_(rules, 0, Number(x.amount) || 0, stock, x.rarity || (o ? o[4] : ''), reg, kind);
-    out.push([code, x.model_number, x.name, spec, x.rarity || (o ? o[4] : ''), kind, Number(x.amount) || 0,
+    // カードラッシュのミラー等はレアリティが「-」→ 公式カードのレアリティを使う
+    const rr = (x.rarity && x.rarity !== '-') ? x.rarity : (o ? o[4] : '');
+    const res = priceFor_(rules, 0, Number(x.amount) || 0, stock, rr, reg, kind);
+    out.push([code, x.model_number, x.name, spec, rr, kind, Number(x.amount) || 0,
               stock, res[1] === '通常' ? ratioFor_(rules, Number(stock) || 0) + '%' : '', res[0], res[1],
               o ? o[cImg] : '', key, key && !spec && feat.has(key) ? '○' : '', 'カードラッシュ']);
   });
