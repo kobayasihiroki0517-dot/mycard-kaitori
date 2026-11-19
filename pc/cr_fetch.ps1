@@ -43,8 +43,8 @@ try {
     foreach ($b in $browsers) {
       if (Test-Path $tmpHtml) { Remove-Item $tmpHtml -Force }
       $prof = Join-Path $env:TEMP 'cardrush_profile'
-      $args = @('--headless=new', '--disable-gpu', '--no-first-run', ('--user-data-dir="' + $prof + '"'), ('--user-agent="' + $ua + '"'), '--virtual-time-budget=15000', '--dump-dom', ('"' + $url + '"'))
-      $p = Start-Process -FilePath $b -ArgumentList $args -RedirectStandardOutput $tmpHtml -NoNewWindow -PassThru -Wait
+      $bargs = @('--headless=new', '--disable-gpu', '--no-first-run', ('--user-data-dir="' + $prof + '"'), ('--user-agent="' + $ua + '"'), '--virtual-time-budget=15000', '--dump-dom', ('"' + $url + '"'))
+      $p = Start-Process -FilePath $b -ArgumentList $bargs -RedirectStandardOutput $tmpHtml -NoNewWindow -PassThru -Wait
       if (Test-Path $tmpHtml) {
         $h = [IO.File]::ReadAllText($tmpHtml, [Text.Encoding]::UTF8)
         if ($h -match '__NEXT_DATA__') { return $h }
