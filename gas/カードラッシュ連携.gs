@@ -59,7 +59,7 @@ function fillFromCardrush_(interactive) {
     props.setProperty('CR_LAST', '取得できず：' + (e.message || e)); say(String(e.message || e)); return 0;
   }
   props.setProperty('CR_LAST', data.rows.length + ' 件取得' + (data.updatedAt ? '（カードラッシュ側の更新：' + data.updatedAt + '）' : ''));
-  CR_ROWS_CACHE = data.rows;   // CR買取表で使い回す
+  saveCrRaw_(data.rows);   // Webの一覧はこの生データからGitHubで作る
   const idx = crIndex_(data.rows);
   const ss = SpreadsheetApp.getActive();
 
@@ -102,4 +102,22 @@ function fillFromCardrush_(interactive) {
       'カード一覧：' + hit + ' 枚に比較用の価格を入力\n' +
       '買取表：' + filled.length + ' 件の未入力価格を補完' + (filled.length ? '\n' + filled.slice(0, 15).join('\n') : ''));
   return filled.length;
+}
+
+/* カードラッシュの買取価格一覧（スタンダード全件）をそのまま「CR生データ」シートに保存
+ * → GitHubの「買取表を作成」がこれを読み、表記・80%・在庫割合・切り捨て・買取保証を計算してWebに載せる
+ *   （カードラッシュはGitHubからの直接の取得を拒否するため、Googleから取得して受け渡す） */
+function saveCrRaw_(rows) {
+  const ss = SpreadsheetApp.getActive();
+  const sh = ss.getSheetByName('CR生データ') || ss.insertSheet('CR生データ');
+  const head = ['pack_code', 'model_number', 'name', 'extra_difference', 'rarity', 'amount', 'updated_at'];
+  const out = rows.map(x => [x.pack_code || '', x.model_number || '', x.name || '', x.extra_difference || '', x.rarity || '',
+                             Number(x.amount) || 0, x.updated_at || '']);
+  sh.clearContents();
+  if (sh.getMaxRows() < out.length + 1) sh.insertRowsAfter(sh.getMaxRows(), out.length + 1 - sh.getMaxRows());
+  sh.getRange(1, 1, 1, head.length).setValues([head]).setFontWeight('bold');
+  if (out.length) {
+    sh.getRange(2, 1, out.length, head.length).setNumberFormat('@');
+    sh.getRange(2, 1, out.length, head.length).setValues(out.map(r => r.map(String)));
+  }
 }

@@ -124,7 +124,6 @@ function applyPriceRules_(interactive) {
   });
   buy.getRange(2, 5, last - 1, 1).setValues(prices);
   buy.getRange(2, cSrc, last - 1, 1).setValues(src);
-  try { buildCrSheet_(rules); } catch (e) { console.log('CR買取表を作れませんでした: ' + e); }
   say('価格ルールを適用しました\n通常価格：' + normal + ' 枚／買取保証：' + guar + ' 枚\n買取表：' + upd + ' 件の価格を更新');
   return upd;
 }

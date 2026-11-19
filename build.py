@@ -89,7 +89,8 @@ def read_sheet(url):
 CARDS_GID = '1723803105'   # 「カード一覧」シート
 
 
-CRB_GID = '900001'   # 「CR買取表」シート（カードラッシュ全件を基準にした一覧）
+CRB_GID = '900001'   # （旧）CR買取表
+CR_RAW_GID = '900002'   # 「CR生データ」シート（カードラッシュの買取価格一覧そのまま）
 
 
 def read_cr_cards(sheet_url, prices):
@@ -135,7 +136,11 @@ def cr_direct(sheet_url, prices):
                          rr=g(r, 'レアリティ'), kind=g(r, '種類'), img=g(r, '画像URL（ドライブ）'), fullnum=g(r, '番号表記'),
                          stock=to_int(g(r, '▼POS在庫数')) or 0)
                     for r in rows[1:] if g(r, '【】エキスパンション')]
-        cr = crweb.fetch_cardrush()
+        # カードラッシュはGitHubからの直接取得を拒否する → スプレッドシートの「CR生データ」（Googleが取得）を使う
+        raw = list(csv.reader(io.StringIO(fetch(re.sub(r'gid=\d+', 'gid=' + CR_RAW_GID, sheet_url)).decode('utf-8-sig'))))
+        if len(raw) < 2 or raw[0][:2] != ['pack_code', 'model_number']:
+            raise ValueError('「CR生データ」シートがまだありません（スプレッドシートで自動更新を実行してください）')
+        cr = [dict(zip(raw[0], r)) for r in raw[1:] if r and r[0]]
         featured = {k for k, v in prices.items() if v.get('feat')}
         out = crweb.build_list(cr, official, rules, featured)
         print(f'カードラッシュ {len(cr)} 件から一覧を作成（基準 {rules["base"]:g}%）：{len(out)} 件'
@@ -296,7 +301,7 @@ def main():
     if cards:
         save_pdf(a4_pages(cards, up), os.path.join(SITE, 'kaitori.pdf'))
 
-    all_cards = [c for c in (cr_direct(url, prices) or read_cr_cards(url, prices) or read_all_cards(url, prices) or cards) if released(c['exp'], exp_dates)]
+    all_cards = [c for c in (cr_direct(url, prices) or read_all_cards(url, prices) or cards) if released(c['exp'], exp_dates)]
     print(f'Webページ掲載 {len(all_cards)} 枚')
     web_cards = [dict(c, img=c['url']) for c in all_cards]
     with open(os.path.join(SITE, 'index.html'), 'w', encoding='utf-8') as f:
