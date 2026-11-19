@@ -75,7 +75,9 @@ function importPos_(force, interactive, noPublish) {
     c = c.filter(x => !/エラー|（.*?）/.test(x[cName])).length ? c.filter(x => !/エラー|（.*?）/.test(x[cName])) : c;
     let c2 = c.filter(x => norm(x[cName]) === norm(name));
     if (!c2.length) return [null, '名前不一致'];
-    if (c2.length > 1) { const b = c2.filter(x => (x[cR] || '').indexOf('ミラー') < 0); if (b.length) c2 = b; }
+    // ミラー（モンスターボール・マスターボールなど）は別商品。通常カードの価格には使わない
+    c2 = c2.filter(x => !/ミラー/.test((x[cR] || '') + (x[cName] || '')));
+    if (!c2.length) return [null, 'ミラーのみ'];
     if (c2.length > 1 && rr) { const b = c2.filter(x => x[cR] === rr); if (b.length) c2 = b; }
     if (new Set(c2.map(x => x[cB])).size > 1) return [null, '候補複数'];
     return [c2[0], 'OK'];

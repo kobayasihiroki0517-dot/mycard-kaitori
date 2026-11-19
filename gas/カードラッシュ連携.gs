@@ -41,8 +41,10 @@ function crPick_(idx, exp, num, name) {
   let c = (idx[crExp_(exp) + '|' + num] || []).filter(x => norm(x.name) === norm(name));
   if (!c.length) return null;
   const base = c.filter(x => x.extra_difference === '' || x.extra_difference === 'ノーマル仕様');
-  const notVariant = c.filter(x => !/ミラー|エラー|未開封|マーク|当選|LEGEND/.test(x.extra_difference || ''));
-  c = base.length ? base : notVariant.length ? notVariant : c;
+  const notVariant = c.filter(x => !/ミラー|エラー|未開封|マーク|当選|LEGEND|ボール/.test(x.extra_difference || ''));
+  // ミラー（モンスターボール・マスターボールなど）やエラー品しかない場合は、通常カードの価格として使わない
+  c = base.length ? base : notVariant;
+  if (!c.length) return null;
   return c.length === 1 ? c[0] : (new Set(c.map(x => x.amount)).size === 1 ? c[0] : null);
 }
 
@@ -84,7 +86,12 @@ function fillFromCardrush_(interactive) {
     const blank = prices[i][0] === '' || prices[i][0] === null;
     if (!blank && src[i][0] !== 'カードラッシュ') { if (!src[i][0]) src[i][0] = '手入力/POS'; return; }
     const m = crPick_(idx, r[0], r[1], r[2]);
-    if (!m) { if (blank) src[i][0] = '取得できず'; return; }
+    if (!m) {
+      // 以前カードラッシュから入れた価格が今は使えない（ミラーだけ等）→ 消して「取得できず」に戻す
+      if (src[i][0] === 'カードラッシュ') { prices[i][0] = ''; src[i][0] = '取得できず'; }
+      else if (blank) src[i][0] = '取得できず';
+      return;
+    }
     if (Number(prices[i][0]) !== m.amount) filled.push(r[2] + '（' + r[0] + ' ' + r[1] + '）→ ' + m.amount + '円');
     prices[i][0] = m.amount; src[i][0] = 'カードラッシュ';
   });
