@@ -88,6 +88,40 @@ def read_sheet(url):
 CARDS_GID = '1723803105'   # 「カード一覧」シート
 
 
+CRB_GID = '900001'   # 「CR買取表」シート（カードラッシュ全件を基準にした一覧）
+
+
+def read_cr_cards(sheet_url, prices):
+    """Webページ用：CR買取表の全件（表記・価格はカードラッシュ基準。画像がないものは img='' → 「準備中」）"""
+    url = os.environ.get('SHEET_CRB_CSV_URL') or re.sub(r'gid=\d+', 'gid=' + CRB_GID, sheet_url)
+    try:
+        rows = list(csv.reader(io.StringIO(fetch(url).decode('utf-8-sig'))))
+    except Exception as e:
+        print('CR買取表を読み込めませんでした:', e)
+        return None
+    head = [h.strip() for h in rows[0]] if rows else []
+    if '表示価格' not in head or len(rows) < 2:
+        print('CR買取表がまだ作られていません（スプレッドシートで「CR買取表を作り直す」を実行してください）')
+        return None
+    ix = {h: i for i, h in enumerate(head)}
+    g = lambda r, h: (r[ix[h]].strip() if h in ix and ix[h] < len(r) else '')
+    featured = {k for k, v in prices.items() if v.get('feat')}
+    out = []
+    for r in rows[1:]:
+        if not g(r, 'エキスパンション'):
+            continue
+        guar = g(r, '区分') == '買取保証'
+        price = price_of(g(r, '表示価格'))
+        if not price and not guar:
+            continue
+        key = g(r, '照合キー')
+        out.append(dict(exp=g(r, 'エキスパンション'), num=g(r, '型番'), name=g(r, 'カード名'), sp=g(r, '仕様'),
+                        rr=g(r, 'レアリティ'), kind=g(r, '種類'), price=price or '', g=1 if guar else 0,
+                        feat=bool(g(r, '強化買取') == '○' or (key and not g(r, '仕様') and key in featured)),
+                        url=g(r, '画像URL')))
+    return out
+
+
 def read_all_cards(sheet_url, prices):
     """Webページ用：カード一覧の全カード。価格は 買取表 → POS買取価格 → カードラッシュ の順で採用"""
     url = os.environ.get('SHEET_CARDS_CSV_URL') or re.sub(r'gid=\d+', 'gid=' + CARDS_GID, sheet_url)
@@ -238,7 +272,7 @@ def main():
     if cards:
         save_pdf(a4_pages(cards, up), os.path.join(SITE, 'kaitori.pdf'))
 
-    all_cards = [c for c in (read_all_cards(url, prices) or cards) if released(c['exp'], exp_dates)]
+    all_cards = [c for c in (read_cr_cards(url, prices) or read_all_cards(url, prices) or cards) if released(c['exp'], exp_dates)]
     print(f'Webページ掲載 {len(all_cards)} 枚')
     web_cards = [dict(c, img=c['url']) for c in all_cards]
     with open(os.path.join(SITE, 'index.html'), 'w', encoding='utf-8') as f:

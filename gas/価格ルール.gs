@@ -37,7 +37,9 @@ function readRules_() {
                  .sort((a, b) => a.min - b.min);
   // J3：割合込みの価格がこの金額以下なら「買取保証」に切り替える（空欄なら切り替えない）
   const low = String(sh.getRange('J3').getDisplayValue()).replace(/[^\d]/g, '');
-  return { guarantee: guarantee, ratio: ratio, lowLimit: low === '' ? null : Number(low) };
+  // J8：カードラッシュ価格に対する基準の割合（%）。空欄なら100%
+  const base = String(sh.getRange('J8').getDisplayValue()).replace(/[^\d.]/g, '');
+  return { guarantee: guarantee, ratio: ratio, lowLimit: low === '' ? null : Number(low), basePct: base === '' ? 100 : Number(base) };
 }
 function ratioFor_(rules, stock) {
   let pct = 100;
@@ -58,7 +60,8 @@ function guaranteeFor_(rules, rr, reg, kind) {
 function priceFor_(rules, pos, cr, stock, rr, reg, kind) {
   pos = Number(pos) || 0; cr = Number(cr) || 0;
   if (cr > 0) {
-    const base = pos > 0 ? Math.min(pos, cr) : cr;
+    // 基準はカードラッシュのみ（POSの価格は使わない）：カードラッシュ価格 × 基準の割合
+    const base = cr * (rules.basePct === undefined ? 100 : rules.basePct) / 100;
     const p = Math.floor(base * ratioFor_(rules, Number(stock) || 0) / 100 / 10) * 10;
     // 割合込みで安くなりすぎたカードは買取保証に格下げ
     if (rules.lowLimit !== null && rules.lowLimit !== undefined && p <= rules.lowLimit)
@@ -114,6 +117,7 @@ function applyPriceRules_(interactive) {
   });
   buy.getRange(2, 5, last - 1, 1).setValues(prices);
   buy.getRange(2, cSrc, last - 1, 1).setValues(src);
+  try { buildCrSheet_(rules); } catch (e) { console.log('CR買取表を作れませんでした: ' + e); }
   say('価格ルールを適用しました\n通常価格：' + normal + ' 枚／買取保証：' + guar + ' 枚\n買取表：' + upd + ' 件の価格を更新');
   return upd;
 }

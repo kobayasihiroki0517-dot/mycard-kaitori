@@ -6,6 +6,7 @@ function onOpen() {
     .addItem('POSから買取価格を取り込む', 'importPosNow')
     .addItem('未入力の価格をカードラッシュから取得', 'fillFromCardrushNow')
     .addItem('価格ルールを適用（再計算）', 'applyPriceRulesNow')
+    .addItem('CR買取表を作り直す（カードラッシュ全件）', 'buildCrSheetNow')
     .addItem('強化買取候補を更新（在庫0枚）', 'updateCandidatesNow')
     .addItem('候補を一括でチェック（表示中のみ）', 'checkAllCandidates')
     .addItem('候補のチェックをすべて外す', 'uncheckAllCandidates')

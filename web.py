@@ -63,6 +63,9 @@ h2{font-size:19px;color:var(--red);margin:4px 0 12px;font-weight:900}
 .li .th{justify-self:center}
 .li.hd .c-kind{color:#fff;font-size:12px}
 .li:nth-child(odd):not(.hd){background:var(--row)}
+.ni{display:grid;place-items:center;aspect-ratio:868/1212;border-radius:4px;background:repeating-linear-gradient(135deg,var(--bg) 0 8px,var(--panel) 8px 16px);border:1px dashed var(--line);color:var(--sub);font-weight:700;font-size:13px;letter-spacing:.08em}
+.li .ni{width:48px;font-size:9px;letter-spacing:0;border-radius:3px}
+.sp{display:inline-block;margin-left:6px;padding:2px 6px;border-radius:4px;background:var(--red);color:#fff;font-size:11px;font-weight:700;vertical-align:middle;letter-spacing:.02em}
 .li img{width:48px;aspect-ratio:868/1212;object-fit:cover;border-radius:3px;background:var(--bg);display:block}
 .li .c-num{font-family:var(--en);font-weight:700;font-size:13px;color:var(--sub);white-space:nowrap}
 .li .c-kind{font-size:13px;color:var(--sub)}
@@ -163,15 +166,18 @@ Object.keys(rc).sort((a,b)=>(RO.indexOf(a)+99)%99-(RO.indexOf(b)+99)%99).forEach
 const KO=['ポケモン','グッズ','ポケモンのどうぐ','サポート','スタジアム','エネルギー'];const kc=cnt('kind');
 KO.filter(v=>kc[v]).forEach(v=>$('kind').add(new Option(v+'（'+kc[v]+'）',v)));if(!Object.keys(kc).length)$('kind').hidden=true;
 const tags=c=>(c.exp?`<span class="tag">${esc(c.exp)}</span>`:'')+(c.rr?`<span class="tag r">${esc(c.rr)}</span>`:'');
-const card=(c,i)=>`<article class="card"><div class="im"><img loading="lazy" src="${esc(sized(c.img,400))}" alt="${esc(c.name)}"></div>
-<div class="meta">${tags(c)}<span class="num">${esc(c.num)}</span></div><div class="nm">${esc(c.name)}</div><div class="pr yen">${pv(c)}</div></article>`;
-const row=(c,i)=>`<div class="li${c.feat?' f':''}"><button type="button" class="th" data-i="${i}" aria-label="${esc(c.name)}の画像を拡大"><img loading="lazy" src="${esc(sized(c.img,100))}" alt=""></button>
+// 画像がないカードは「準備中」
+const im=(c,w)=>c.img?`<img loading="lazy" src="${esc(sized(c.img,w))}" alt="${w>200?esc(c.name):''}">`:'<span class="ni">準備中</span>';
+const sp=c=>c.sp?`<span class="sp">${esc(c.sp)}</span>`:'';
+const card=(c,i)=>`<article class="card"><div class="im">${im(c,400)}</div>
+<div class="meta">${tags(c)}<span class="num">${esc(c.num)}</span></div><div class="nm">${esc(c.name)}${sp(c)}</div><div class="pr yen">${pv(c)}</div></article>`;
+const row=(c,i)=>`<div class="li${c.feat?' f':''}"><button type="button" class="th" data-i="${i}" aria-label="${esc(c.name)}の画像を拡大">${im(c,100)}</button>
 <div class="c-exp">${c.exp?`<span class="tag">${esc(c.exp)}</span>`:''}</div><div class="c-num">${esc(c.num)}</div><div class="c-rr">${c.rr?`<span class="tag r">${esc(c.rr)}</span>`:''}</div>
-<div class="nm"><span class="cn">${esc(c.name)}</span><span class="sub">${tags(c)}<span class="num">${esc(c.num)}</span></span></div><div class="c-kind">${esc(c.kind||'')}</div><div class="pr yen">${pv(c)}</div></div>`;
+<div class="nm"><span class="cn">${esc(c.name)}${sp(c)}</span><span class="sub">${tags(c)}<span class="num">${esc(c.num)}</span></span></div><div class="c-kind">${esc(c.kind||'')}</div><div class="pr yen">${pv(c)}</div></div>`;
 const HEAD='<div class="li hd" aria-hidden="true"><span>画像</span><span>エキスパンション</span><span>型番</span><span>レアリティ</span><span>カード名</span><span class="c-kind">種類</span><span class="pr">買取価格</span></div>';
 function filtered(){
  const q=$('q').value.trim(),e=$('exp').value,r=$('rr').value,k=$('kind').value,s=$('sort').value;
- let A=CARDS.filter(c=>(!q||c.name.includes(q))&&(!e||c.exp===e)&&(!r||c.rr===r)&&(!k||c.kind===k));
+ let A=CARDS.filter(c=>(!q||(c.name+(c.sp||'')).includes(q))&&(!e||c.exp===e)&&(!r||c.rr===r)&&(!k||c.kind===k));
  if(s==='feat')A=A.filter(c=>c.feat).sort((a,b)=>pnum(b)-pnum(a));
  else if(s==='high')A.sort((a,b)=>pnum(b)-pnum(a));
  else if(s==='low')A.sort((a,b)=>pnum(a)-pnum(b));
@@ -207,11 +213,11 @@ $('vList').addEventListener('click',()=>setView('list'));$('vGrid').addEventList
 if('IntersectionObserver' in window)new IntersectionObserver(es=>{if(es[0].isIntersecting&&!$('more').hidden){shown+=PAGE;render(false)}},{rootMargin:'600px'}).observe($('more'));
 // リスト表示：左の画像にカーソルで大きい画像、タップで拡大表示
 const pop=$('pop'),pimg=pop.querySelector('img');const hoverable=matchMedia('(hover:hover)').matches;
-$('out').addEventListener('mouseover',e=>{const b=e.target.closest('.li .th');if(!b||!hoverable)return;pimg.src=sized(L[b.dataset.i].img,600);pop.hidden=false});
+$('out').addEventListener('mouseover',e=>{const b=e.target.closest('.li .th');if(!b||!hoverable||!L[b.dataset.i].img)return;pimg.src=sized(L[b.dataset.i].img,600);pop.hidden=false});
 $('out').addEventListener('mousemove',e=>{if(pop.hidden)return;const w=260,h=370,x=e.clientX+24+w>innerWidth?e.clientX-w-24:e.clientX+24;pop.style.left=x+'px';pop.style.top=Math.max(8,Math.min(e.clientY-h/2,innerHeight-h-8))+'px'});
 $('out').addEventListener('mouseout',e=>{if(e.target.closest('.li .th'))pop.hidden=true});
-$('out').addEventListener('click',e=>{const b=e.target.closest('.li .th');if(!b)return;const c=L[b.dataset.i];pop.hidden=true;
- $('modal').querySelector('img').src=sized(c.img,800);$('modal').querySelector('p').textContent=c.name+'　'+(c.g?'買取保証 ':'')+ptxt(c.price);$('modal').hidden=false});
+$('out').addEventListener('click',e=>{const b=e.target.closest('.li .th');if(!b)return;const c=L[b.dataset.i];pop.hidden=true;if(!c.img)return;
+ $('modal').querySelector('img').src=sized(c.img,800);$('modal').querySelector('p').textContent=c.name+(c.sp?'（'+c.sp+'）':'')+'　'+(c.g?'買取保証 ':'')+ptxt(c.price);$('modal').hidden=false});
 $('modal').addEventListener('click',()=>{$('modal').hidden=true});
 addEventListener('keydown',e=>{if(e.key==='Escape'){$('modal').hidden=true;gpop.hidden=true;gpin=false}});
 // 「買取保証」：カーソルを合わせる（スマホはタップ）と保証内容を表示
@@ -228,7 +234,7 @@ render(true);
 
 def build(cards, updated, logo_src, rules=None, exp_order=None):
     rules = rules or dict(desc='', rows=[])
-    data = json.dumps([{k: c.get(k, '') for k in ('exp', 'num', 'name', 'rr', 'kind', 'price', 'feat', 'img', 'g')} for c in cards],
+    data = json.dumps([{k: c.get(k, '') for k in ('exp', 'num', 'name', 'rr', 'kind', 'price', 'feat', 'img', 'g', 'sp')} for c in cards],
                       ensure_ascii=False, separators=(',', ':'))
     return TEMPLATE.replace('__DATA__', data.replace('</', '<\\/')).replace('__UPDATED__', html.escape(updated)).replace('__LOGO__', logo_src).replace(
         '__EXPORDER__', json.dumps(exp_order or {}, ensure_ascii=False)).replace(

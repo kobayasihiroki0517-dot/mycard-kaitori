@@ -59,6 +59,7 @@ function fillFromCardrush_(interactive) {
     props.setProperty('CR_LAST', '取得できず：' + (e.message || e)); say(String(e.message || e)); return 0;
   }
   props.setProperty('CR_LAST', data.rows.length + ' 件取得' + (data.updatedAt ? '（カードラッシュ側の更新：' + data.updatedAt + '）' : ''));
+  CR_ROWS_CACHE = data.rows;   // CR買取表で使い回す
   const idx = crIndex_(data.rows);
   const ss = SpreadsheetApp.getActive();
 
