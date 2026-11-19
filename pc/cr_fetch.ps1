@@ -22,16 +22,46 @@ try {
   $ua = 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/130.0.0.0 Safari/537.36'
   $base = 'https://cardrush.media/pokemon/buying_prices?limit=500&display_category=%E3%82%B9%E3%82%BF%E3%83%B3%E3%83%80%E3%83%BC%E3%83%89&page='
 
+  # ページのHTMLを取る：① Windows標準の curl.exe → ② だめならEdge/Chromeを画面なしで起動して取得
+  $browsers = @(
+    (Join-Path ${env:ProgramFiles(x86)} 'Microsoft\Edge\Application\msedge.exe'),
+    (Join-Path $env:ProgramFiles 'Microsoft\Edge\Application\msedge.exe'),
+    (Join-Path $env:ProgramFiles 'Google\Chrome\Application\chrome.exe'),
+    (Join-Path ${env:ProgramFiles(x86)} 'Google\Chrome\Application\chrome.exe')
+  ) | Where-Object { $_ -and (Test-Path $_) }
+  $tmpHtml = Join-Path $env:TEMP 'cardrush_page.html'
+  function Get-Html($url) {
+    $curl = Join-Path $env:SystemRoot 'System32\curl.exe'
+    if (Test-Path $curl) {
+      if (Test-Path $tmpHtml) { Remove-Item $tmpHtml -Force }
+      & $curl -s -L --compressed --max-time 60 -A $ua -H 'Accept-Language: ja,en;q=0.8' -H 'Accept: text/html,application/xhtml+xml' -o $tmpHtml $url 2>$null
+      if (Test-Path $tmpHtml) {
+        $h = [IO.File]::ReadAllText($tmpHtml, [Text.Encoding]::UTF8)
+        if ($h -match '__NEXT_DATA__') { return $h }
+      }
+    }
+    foreach ($b in $browsers) {
+      if (Test-Path $tmpHtml) { Remove-Item $tmpHtml -Force }
+      $prof = Join-Path $env:TEMP 'cardrush_profile'
+      $args = @('--headless=new', '--disable-gpu', '--no-first-run', ('--user-data-dir="' + $prof + '"'), ('--user-agent="' + $ua + '"'), '--virtual-time-budget=15000', '--dump-dom', ('"' + $url + '"'))
+      $p = Start-Process -FilePath $b -ArgumentList $args -RedirectStandardOutput $tmpHtml -NoNewWindow -PassThru -Wait
+      if (Test-Path $tmpHtml) {
+        $h = [IO.File]::ReadAllText($tmpHtml, [Text.Encoding]::UTF8)
+        if ($h -match '__NEXT_DATA__') { return $h }
+      }
+    }
+    throw 'カードラッシュのページを取得できませんでした（curl・ブラウザとも）'
+  }
+
   function Get-Page($n) {
-    for ($t = 1; $t -le 4; $t++) {
+    for ($t = 1; $t -le 3; $t++) {
       try {
-        $r = Invoke-WebRequest -Uri ($base + $n) -UserAgent $ua -UseBasicParsing -Headers @{ 'Accept-Language' = 'ja,en;q=0.8' }
-        $html = [Text.Encoding]::UTF8.GetString($r.RawContentStream.ToArray())
+        $html = Get-Html ($base + $n)
         $m = [regex]::Match($html, '<script id="__NEXT_DATA__"[^>]*>([\s\S]*?)</script>')
         if (-not $m.Success) { throw 'カードラッシュのページ形式が変わった可能性があります' }
         return ($m.Groups[1].Value | ConvertFrom-Json).props.pageProps
       } catch {
-        if ($t -eq 4) { throw }
+        if ($t -eq 3) { throw }
         Log ("  {0}ページ目の取得に失敗。{1}秒後に再試行: {2}" -f $n, (15 * $t), $_.Exception.Message)
         Start-Sleep -Seconds (15 * $t)
       }
