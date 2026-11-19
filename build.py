@@ -9,6 +9,7 @@ import csv, io, json, os, re, shutil, sys, time, datetime, urllib.request
 from concurrent.futures import ThreadPoolExecutor
 from render import x_images, a4_pages, save_pdf
 from web import build as build_web
+import crweb
 
 HERE = os.path.dirname(os.path.abspath(__file__))
 SITE = os.path.join(HERE, 'site')
@@ -120,6 +121,29 @@ def read_cr_cards(sheet_url, prices):
                         feat=bool(g(r, '強化買取') == '○' or (key and not g(r, '仕様') and key in featured)),
                         url=g(r, '画像URL')))
     return out
+
+
+def cr_direct(sheet_url, prices):
+    """カードラッシュを直接取得して一覧を作る（スプレッドシートからはカード一覧・価格ルール・強化買取だけ読む）"""
+    try:
+        rules = crweb.parse_rules(list(csv.reader(io.StringIO(fetch(re.sub(r'gid=\d+', 'gid=' + RULES_GID, sheet_url)).decode('utf-8-sig')))))
+        rows = list(csv.reader(io.StringIO(fetch(re.sub(r'gid=\d+', 'gid=' + CARDS_GID, sheet_url)).decode('utf-8-sig'))))
+        head = [h.strip() for h in rows[0]]
+        ix = {h: i for i, h in enumerate(head)}
+        g = lambda r, h: (r[ix[h]].strip() if h in ix and ix[h] < len(r) else '')
+        official = [dict(exp=g(r, '【】エキスパンション'), num=g(r, '()番号'), name=g(r, 'カード名'), reg=g(r, '[]レギュレーション'),
+                         rr=g(r, 'レアリティ'), kind=g(r, '種類'), img=g(r, '画像URL（ドライブ）'), fullnum=g(r, '番号表記'),
+                         stock=to_int(g(r, '▼POS在庫数')) or 0)
+                    for r in rows[1:] if g(r, '【】エキスパンション')]
+        cr = crweb.fetch_cardrush()
+        featured = {k for k, v in prices.items() if v.get('feat')}
+        out = crweb.build_list(cr, official, rules, featured)
+        print(f'カードラッシュ {len(cr)} 件から一覧を作成（基準 {rules["base"]:g}%）：{len(out)} 件'
+              f'（仕様つき {sum(1 for c in out if c["sp"])} 件・画像なし {sum(1 for c in out if not c["url"])} 件）')
+        return out
+    except Exception as e:
+        print('カードラッシュから直接作れませんでした（スプレッドシートの一覧を使います）:', e)
+        return None
 
 
 def read_all_cards(sheet_url, prices):
@@ -272,7 +296,7 @@ def main():
     if cards:
         save_pdf(a4_pages(cards, up), os.path.join(SITE, 'kaitori.pdf'))
 
-    all_cards = [c for c in (read_cr_cards(url, prices) or read_all_cards(url, prices) or cards) if released(c['exp'], exp_dates)]
+    all_cards = [c for c in (cr_direct(url, prices) or read_cr_cards(url, prices) or read_all_cards(url, prices) or cards) if released(c['exp'], exp_dates)]
     print(f'Webページ掲載 {len(all_cards)} 枚')
     web_cards = [dict(c, img=c['url']) for c in all_cards]
     with open(os.path.join(SITE, 'index.html'), 'w', encoding='utf-8') as f:
